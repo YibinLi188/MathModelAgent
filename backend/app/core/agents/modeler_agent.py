@@ -7,7 +7,6 @@ from app.core.prompts import MODELER_PROMPT
 from app.schemas.A2A import CoordinatorToModeler, ModelerToCoder
 from app.utils.log_util import logger
 import json
-import re
 from icecream import ic  # type: ignore[import-unresolved]
 
 MAX_JSON_RETRIES = 3
@@ -30,25 +29,14 @@ def repair_json(json_str: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Fix unescaped newlines and quotes inside string values
+    # 允许 JSON 前后存在少量说明，但不再用正则猜测字段内容。
     try:
-        fixed = re.sub(
-            r'(?<=: ")(.*?)(?=",\s*\n\s*"|"\s*\n\s*})',
-            lambda m: m.group(0).replace('"', '\\"'),
-            json_str,
-            flags=re.DOTALL,
-        )
-        return json.loads(fixed)
-    except (json.JSONDecodeError, re.error):
-        pass
-
-    # Extract key-value pairs with regex as last resort
-    try:
-        pattern = r'"(\w+)"\s*:\s*"((?:[^"\\]|\\.|"(?!,\s*\n)|"(?!\s*\n\s*}))*)"'
-        matches = re.findall(pattern, json_str, re.DOTALL)
-        if matches:
-            return {k: v.replace('\\"', '"') for k, v in matches}
-    except re.error:
+        start = json_str.find("{")
+        if start >= 0:
+            value, _ = json.JSONDecoder().raw_decode(json_str[start:])
+            if isinstance(value, dict):
+                return value
+    except json.JSONDecodeError:
         pass
 
     return None

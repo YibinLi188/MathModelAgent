@@ -67,14 +67,24 @@ class WriterAgent(Agent):
 
         if available_images:
             self.available_images = available_images
-            image_lines = "\n".join(
-                [f"- ![{img}]({img})" for img in available_images]
-            )
+            if self.format_out_put == FormatOutPut.LaTeX:
+                image_lines = "\n".join(
+                    [
+                        f"- \\includegraphics[width=0.85\\textwidth]{{{img}}}"
+                        for img in available_images
+                    ]
+                )
+                syntax = "LaTeX figure 环境，使用原始相对路径"
+            else:
+                image_lines = "\n".join(
+                    [f"- ![{img}]({img})" for img in available_images]
+                )
+                syntax = "Markdown 独占一行的 ![描述](原始相对路径)"
             image_prompt = (
                 f"\n\n【必须插入的图片列表】\n"
-                f"以下图片是代码手生成的，你必须在论文相关段落后用 Markdown 格式逐一插入：\n"
+                f"以下图片是代码手生成的，必须在论文相关段落后逐一插入，格式为 {syntax}：\n"
                 f"{image_lines}\n"
-                f"插入格式为独占一行的 ![描述](文件名)，每张图片后需配3行以上的分析解读。\n"
+                f"每张图片前后需配足够的分析解读，不得引用不存在的图片。\n"
             )
             logger.info(f"image_prompt是:{image_prompt}")
             prompt = prompt + image_prompt

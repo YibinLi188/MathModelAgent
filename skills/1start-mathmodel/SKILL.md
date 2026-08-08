@@ -126,3 +126,31 @@ workflow:
   - Typst：`#figure(image("../../figures/xxx.pdf", width: 85%), caption: [...])`
   - LaTeX：`\begin{figure}[H]\centering\includegraphics[width=0.85\textwidth]{../../figures/xxx.pdf}\caption{...}\label{fig:xxx}\end{figure}`
 - 不要让 `5writing` 编造数值结论。论文中的数值必须来自 `RESULTS_REPORT.md`、结果表或已生成图表的数据。
+
+## 启动前质量闸门（升级要求）
+
+在调用下游 Agent 前，必须完成一次可审计预检，并把结论写入 `plan.md`：
+
+1. **题目契约**：确认题目原文、顶层子问题数量、每个小问的输出对象，以及是否包含附件数据。若题面或附件不可读，必须标记为 `blocked_input`，不得让模型自行补造字段。
+2. **数据契约**：为每份输入建立 `data/data_manifest.json`，记录原始文件名、来源 URL/附件标识、抓取或接收时间、SHA-256、单位、行列数、缺失率和允许的派生操作。时间序列必须声明训练、验证、回放区间。
+3. **模型契约**：`ANALYSIS_MODELING_REPORT.md` 必须为每个子问题写出目标、变量、假设、约束、评价指标、失败条件和最小可行基线。只写“使用某算法”不算通过。
+4. **信息边界**：明确哪些值是赛时可知、哪些是事后回放、哪些是代理变量。任何代理口径都必须出现在摘要、数据章节和结论限制中。
+5. **阶段状态**：只有 `analysis_passed` 才能进入代码阶段；只有 `code_passed`（至少一次成功执行、结果文件存在、图表路径可解析）才能进入写作阶段；任一阶段失败都必须阻断下游并留下错误报告。
+
+阶段之间只允许传递结构化结果，不允许把“错误文本”当作结果摘要。推荐使用如下最小契约字段：
+
+```json
+{
+  "status": "success",
+  "task": "ques1",
+  "data_hashes": ["sha256:..."],
+  "metrics": {"mae": 0.0, "rmse": 0.0},
+  "artifacts": ["results/ques1.json", "figures/ques1.png"],
+  "validation": {"independent_recompute": true, "time_split": "..."},
+  "error": null
+}
+```
+
+## 失败处理
+
+失败必须是显式状态而不是自然语言占位：`blocked_input`、`invalid_plan`、`code_failed`、`verification_failed`。达到重试上限后立即停止当前子任务，保存错误、最后一次代码和输入哈希；禁止继续生成看似完整的论文。最终验收必须能从论文数值追溯到结构化结果文件，再追溯到数据快照。

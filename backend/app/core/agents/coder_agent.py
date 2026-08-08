@@ -55,6 +55,8 @@ class CoderAgent(Agent):
         logger.info(f"{self.__class__.__name__}:开始:执行子任务: {subtask_title}")
         assert self.code_interpreter is not None, "code_interpreter 未初始化"
         self.code_interpreter.add_section(subtask_title)
+        # 每个子任务独立计数，避免前一个问题耗尽后续问题的预算。
+        self.current_chat_turns = 0
 
         # 根据 api_type 选择 tools 格式
         api_type = self.model.api_type
@@ -81,6 +83,8 @@ class CoderAgent(Agent):
 
         retry_count = 0
         last_error_message = ""
+        successful_execution = False
+        last_execution_output = ""
 
         while True:
             if self.max_retries is not None and retry_count >= self.max_retries:
@@ -91,8 +95,10 @@ class CoderAgent(Agent):
                 )
                 logger.warning(f"任务失败，超过最大尝试次数{self.max_retries}, 最后错误信息: {last_error_message}")
                 return CoderToWriter(
-                    code_response=f"任务失败，超过最大尝试次数{self.max_retries}, 最后错误信息: {last_error_message}",
-                    created_images=[])
+                    status="failed",
+                    error=f"任务失败，超过最大尝试次数 {self.max_retries}: {last_error_message}",
+                    execution_attempts=retry_count,
+                )
 
 
             if self.max_chat_turns is not None and self.current_chat_turns >= self.max_chat_turns:
@@ -101,8 +107,10 @@ class CoderAgent(Agent):
                     self.task_id,
                     SystemMessage(content="超过最大聊天次数", type="error"),
                 )
-                raise Exception(
-                    f"Reached maximum number of chat turns ({self.max_chat_turns}). Task incomplete."
+                return CoderToWriter(
+                    status="failed",
+                    error=f"超过最大聊天次数 {self.max_chat_turns}，代码阶段未完成",
+                    execution_attempts=retry_count,
                 )
 
             self.current_chat_turns += 1
@@ -131,7 +139,15 @@ class CoderAgent(Agent):
                             ),
                         )
 
-                        code = json.loads(tool_call.arguments)["code"]
+                        try:
+                            code = json.loads(tool_call.arguments)["code"]
+                        except (TypeError, KeyError, json.JSONDecodeError) as exc:
+                            retry_count += 1
+                            last_error_message = f"execute_code 参数无效: {exc}"
+                            await self.append_chat_history(
+                                {"role": "user", "content": last_error_message}
+                            )
+                            continue
 
                         await redis_manager.publish_message(
                             self.task_id,
@@ -200,16 +216,31 @@ class CoderAgent(Agent):
                                     "content": text_to_gpt,
                                 }
                             )
+                            successful_execution = True
+                            last_execution_output = (
+                                text_to_gpt or "代码执行成功，但解释器未返回文本输出"
+                            )
                             # 成功执行后继续循环，等待下一步指令
                             continue
                 else:
                     # 没有工具调用，表示任务完成
                     logger.info("没有工具调用，任务完成")
+                    if not successful_execution:
+                        return CoderToWriter(
+                            status="failed",
+                            error="代码手未调用 execute_code，拒绝把未执行文本交给论文手",
+                            execution_attempts=retry_count,
+                        )
+                    created_images = await self.code_interpreter.get_created_images(
+                        subtask_title
+                    )
                     return CoderToWriter(
-                        code_response=response.content,
-                        created_images=await self.code_interpreter.get_created_images(
-                            subtask_title
-                        ),
+                        code_response=response.content or "代码阶段完成",
+                        code_output=last_execution_output,
+                        created_images=created_images,
+                        artifacts=created_images,
+                        execution_attempts=retry_count + 1,
+                        status="success",
                     )
                     
             except Exception as e:

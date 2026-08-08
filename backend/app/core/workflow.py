@@ -14,6 +14,12 @@ from app.services.redis_manager import redis_manager
 from app.tools.notebook_serializer import NotebookSerializer
 from app.core.flows import Flows
 from app.core.llm.llm_factory import LLMFactory
+from app.core.quality_gates import (
+    QualityGateError,
+    validate_coder_result,
+    validate_modeler_result,
+    validate_writer_result,
+)
 
 
 class WorkFlow:
@@ -114,6 +120,14 @@ class MathModelWorkFlow(WorkFlow):
         )
 
         modeler_response = await modeler_agent.run(coordinator_response)
+        validate_modeler_result(
+            modeler_response,
+            {
+                key
+                for key in self.questions
+                if key.startswith("ques") and key != "ques_count"
+            },
+        )
 
         user_output = UserOutput(work_dir=self.work_dir, ques_count=self.ques_count)
 
@@ -187,6 +201,14 @@ class MathModelWorkFlow(WorkFlow):
             coder_response = await coder_agent.run(
                 prompt=value["coder_prompt"], subtask_title=key
             )
+            try:
+                validate_coder_result(coder_response, self.work_dir)
+            except QualityGateError as exc:
+                await redis_manager.publish_message(
+                    self.task_id,
+                    SystemMessage(content=f"代码阶段未通过质量闸门: {exc}", type="error"),
+                )
+                raise
 
             await redis_manager.publish_message(
                 self.task_id,
@@ -208,6 +230,7 @@ class MathModelWorkFlow(WorkFlow):
                 available_images=coder_response.created_images,
                 sub_title=key,
             )
+            validate_writer_result(writer_response)
 
             await redis_manager.publish_message(
                 self.task_id,
@@ -235,6 +258,7 @@ class MathModelWorkFlow(WorkFlow):
             )
 
             writer_response = await writer_agent.run(prompt=value, sub_title=key)
+            validate_writer_result(writer_response)
 
             user_output.set_res(key, writer_response)
 

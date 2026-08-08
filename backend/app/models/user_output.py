@@ -138,11 +138,12 @@ class UserOutput:
             # 找到[uuid]
             uuid_list = re.findall(r"\[([a-f0-9-]{36})\]", text)
             for uid in uuid_list:
-                text = text.replace(f"[{uid}]", f"[^{ref_index}]")
                 if self.footnotes[uid].get("number") is None:
                     self.footnotes[uid]["number"] = ref_index
-
-                ref_index += 1
+                    ref_index += 1
+                text = text.replace(
+                    f"[{uid}]", f"[^{self.footnotes[uid]['number']}]", 1
+                )
             sort_res[seq_key] = {
                 "response_content": text,
             }

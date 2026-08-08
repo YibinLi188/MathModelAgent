@@ -62,6 +62,40 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 所有数据和图表结果都必须出现在 `reports/RESULTS_REPORT.md` 中引用
 
+### Step 3.1：结构化结果契约（必须）
+
+每个子问题必须额外写出 `results/<子问题>.json`，禁止只把数字打印在日志或写进论文。文件至少包含：
+
+```json
+{
+  "schema_version": "1.0",
+  "status": "success",
+  "task": "ques1",
+  "data_hashes": ["sha256:..."],
+  "sample": {"n_total": 0, "n_train": 0, "n_validation": 0},
+  "metrics": {"mae": 0.0, "rmse": 0.0},
+  "parameters": {},
+  "artifacts": ["figures/ques1.png"],
+  "validation": {
+    "time_split": "train<=...; validation=...",
+    "independent_recompute": true,
+    "constraints_passed": true
+  },
+  "limitations": [],
+  "error": null
+}
+```
+
+`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+
+### Step 3.2：数据和时间序列闸门
+
+运行前生成 `data/data_manifest.json`，记录来源、接收时间、SHA-256、字段单位、行列数和缺失率。训练/验证/回放按时间先后切分，禁止随机打乱时序样本。标准化、缺失填补和目标编码只能在训练集拟合，再应用于验证集；代码必须打印实际切分边界和有效样本量。样本少于参数量的模型不得作为主模型，除非报告明确降级并解释原因。
+
+### Step 3.3：独立复核
+
+代码手完成主计算后，必须用独立函数、独立参数重建或保存的中间表重新计算至少一个核心指标和一个关键结论。两次结果的绝对差必须写入 JSON；超过 `1e-6`（或报告中声明的数值容差）则标记 `verification_failed`。
+
 ### Step 4: 生成数据驱动图表
 
 根据 `reports/ANALYSIS_MODELING_REPORT.md` 和 `reports/RESULTS_REPORT.md` 规划图表，生成 PDF 到 `figures/`。
@@ -81,3 +115,7 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 - 不生成流程图/架构图/路线图。
 
 图表可以由主程序或独立脚本生成，不强制固定脚本名。无论采用哪种方式，都必须保存图表对应的数据来源和生成记录。
+
+### Step 5：交接阻断
+
+代码阶段结束前，逐个检查 `results/*.json`。任何子问题缺少结果文件、数据哈希、样本量、验证记录或图表路径时，必须阻断写作阶段，并在 `reports/RESULTS_REPORT.md` 中给出可操作的修复项。写作手只能读取通过闸门的结构化结果，不能从自然语言错误日志猜测数值。

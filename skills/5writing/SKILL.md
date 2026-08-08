@@ -42,7 +42,7 @@ huashubei, huaweibei, huazhongbei, mathorcup, mcm, shuweibei, stats, wuyibei
 apmcm, default, mcm
 ```
 
-论文中的所有数值图表结论必须来自 `reports/RESULTS_REPORT.md` 或 `figures/*`。不得编造、估算或使用不同的四舍五入方式。
+论文中的所有数值图表结论必须来自 `results/*.json`、`reports/RESULTS_REPORT.md` 或 `figures/*`。优先从结构化结果 JSON 取值，不得编造、估算或使用不同的四舍五入方式；正文数字必须能追溯到数据哈希和代码运行记录。
 
 
 ## 工作流
@@ -337,6 +337,10 @@ A_code.typ
 ### 步骤 6：最后撰写摘要或总结
 
 在所有章节完成后撰写中文摘要或英文 Summary Sheet。必须包含每个子问题的方法和精确的数值结果。
+
+## 升级后的交接规则
+
+Writer 只能消费 `status=success` 的结构化代码结果。若某个子问题为 `failed`、缺少数据哈希、缺少验证字段或图表路径不存在，应停止写作并在验收报告中记录，而不是用“结果待补充”填空。图片语法必须与选定引擎一致：Markdown 使用 Markdown 图片，LaTeX 使用 `figure`/`includegraphics`，Typst 使用 `figure`/`image`；禁止把一种引擎的标签复制到另一种正文。
 
 ## LaTeX 写作要点
 
