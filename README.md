@@ -80,6 +80,23 @@ skills 中包含一个科研绘图模板skill,可以绘制一些炫酷的科研�
 
 ### Install & Usage
 
+#### Windows 一键运行（推荐）
+
+在仓库根目录执行：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\run_mathmodelagent.ps1
+```
+
+脚本默认使用 OpenAI 兼容接口、`gpt-4o-mini` 和 Docker。它会安全地提示输入一个 API Key，并将同一个 Key 配置给四个 Agent；Key 只写入被 `.gitignore` 忽略的 `backend/.env.dev`，不会打印或提交。使用其他兼容服务时只需改参数，例如：
+
+```powershell
+.\run_mathmodelagent.ps1 -Model deepseek-chat -BaseUrl https://api.deepseek.com/v1
+```
+
+需要四个不同 Key 时加 `-SeparateKeys`；没有 Docker 时可用 `-Mode local`（需要 Python、Node.js、pnpm 和 Redis）。OpenAlex 邮箱是可选项，不填写不影响核心四 Agent 流程。停止 Docker 服务：`docker compose down`。
+
 安装 SKILL
 ```
 npx skills add jihe520/MathModelAgent --all

@@ -57,7 +57,12 @@ class WriterAgent(Agent):
 
         # 根据 api_type 选择 tools 格式
         api_type = self.model.api_type
-        tools = writer_tools_anthropic if api_type == ApiType.ANTHROPIC else writer_tools
+        # OpenAlex 邮箱是可选配置；未配置时不注册搜索工具，避免把可选服务
+        # 误当成核心流程的硬依赖。
+        has_search = self.scholar is not None and bool(self.scholar.email)
+        tools = (
+            writer_tools_anthropic if api_type == ApiType.ANTHROPIC else writer_tools
+        ) if has_search else None
 
         if self.is_first_run:
             self.is_first_run = False
@@ -94,13 +99,14 @@ class WriterAgent(Agent):
         await self.append_chat_history({"role": "user", "content": prompt})
 
         # 获取历史消息用于本次对话
-        response = await self._chat(
-            history=self.chat_history,
-            tools=tools,
-            tool_choice="auto",
-            agent_name=self.__class__.__name__,
-            sub_title=sub_title,
-        )
+        chat_kwargs = {
+            "history": self.chat_history,
+            "agent_name": self.__class__.__name__,
+            "sub_title": sub_title,
+        }
+        if tools:
+            chat_kwargs.update({"tools": tools, "tool_choice": "auto"})
+        response = await self._chat(**chat_kwargs)
 
         footnotes = []
         response_content: str = ""
@@ -161,13 +167,7 @@ class WriterAgent(Agent):
                         "name": "search_papers",
                     }
                 )
-                next_response = await self._chat(
-                    history=self.chat_history,
-                    tools=tools,
-                    tool_choice="auto",
-                    agent_name=self.__class__.__name__,
-                    sub_title=sub_title,
-                )
+                next_response = await self._chat(**chat_kwargs)
                 response_content = next_response.content or ""
         else:
             response_content = response.content or ""
