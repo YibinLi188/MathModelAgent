@@ -73,10 +73,21 @@ function Write-EnvFile {
 Set-Location $repoRoot
 Write-Host "MathModelAgent launcher" -ForegroundColor Cyan
 Write-Host "Provider: $ApiType | Model: $Model | Mode: $Mode"
+
+# Check prerequisites before requesting or writing any API key.
+if ($Mode -eq "docker") {
+    Require-Command "docker" "Install Docker Desktop and enable Linux containers."
+}
+else {
+    Require-Command "python" "Install Python 3.12 or newer."
+    Require-Command "redis-server" "Install Redis for Windows or use -Mode docker."
+    if (-not $NoFrontend) {
+        Require-Command "pnpm" "Run 'npm install -g pnpm' or use -NoFrontend."
+    }
+}
 Write-EnvFile
 
 if ($Mode -eq "docker") {
-    Require-Command "docker" "Install Docker Desktop and enable Linux containers."
     docker compose config | Out-Null
     Write-Host "Starting services. Open http://localhost:5173" -ForegroundColor Green
     if ($NoFrontend) { docker compose up --build redis backend }
@@ -84,8 +95,6 @@ if ($Mode -eq "docker") {
     exit $LASTEXITCODE
 }
 
-Require-Command "python" "Install Python 3.12 or newer."
-Require-Command "redis-server" "Install Redis for Windows or use -Mode docker."
 if (-not $SkipInstall) {
     Push-Location $backendDir
     try {
@@ -97,7 +106,6 @@ if (-not $SkipInstall) {
 Start-Process redis-server -WindowStyle Hidden
 Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "Set-Location '$backendDir'; `$env:ENV='dev'; python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws-ping-interval 60 --ws-ping-timeout 120"
 if (-not $NoFrontend) {
-    Require-Command "pnpm" "Run 'npm install -g pnpm' or use -NoFrontend."
     $frontendDir = Join-Path $repoRoot "frontend"
     Push-Location $frontendDir
     try {
