@@ -1,5 +1,6 @@
 import { AgentType } from "@/utils/enum";
 import type { ModelConfig } from "@/utils/interface";
+import { OPENAI_NEXT_DEFAULTS } from "@/utils/providerDefaults";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
@@ -12,37 +13,25 @@ export const useApiKeyStore = defineStore(
 		/** 协调者模型配置 */
 		const coordinatorConfig = ref<ModelConfig>({
 			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
+			...OPENAI_NEXT_DEFAULTS,
 		});
 
 		/** 建模者模型配置 */
 		const modelerConfig = ref<ModelConfig>({
 			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
+			...OPENAI_NEXT_DEFAULTS,
 		});
 
 		/** 编码者模型配置 */
 		const coderConfig = ref<ModelConfig>({
 			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
+			...OPENAI_NEXT_DEFAULTS,
 		});
 
 		/** 写作者模型配置 */
 		const writerConfig = ref<ModelConfig>({
 			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
+			...OPENAI_NEXT_DEFAULTS,
 		});
 
 		/** OpenAlex 邮箱 */
@@ -99,31 +88,19 @@ export const useApiKeyStore = defineStore(
 		function resetAll() {
 			coordinatorConfig.value = {
 				apiKey: "",
-				baseUrl: "",
-				modelId: "",
-				apiType: "",
-				contextWindow: 128000,
+				...OPENAI_NEXT_DEFAULTS,
 			};
 			modelerConfig.value = {
 				apiKey: "",
-				baseUrl: "",
-				modelId: "",
-				apiType: "",
-				contextWindow: 128000,
+				...OPENAI_NEXT_DEFAULTS,
 			};
 			coderConfig.value = {
 				apiKey: "",
-				baseUrl: "",
-				modelId: "",
-				apiType: "",
-				contextWindow: 128000,
+				...OPENAI_NEXT_DEFAULTS,
 			};
 			writerConfig.value = {
 				apiKey: "",
-				baseUrl: "",
-				modelId: "",
-				apiType: "",
-				contextWindow: 128000,
+				...OPENAI_NEXT_DEFAULTS,
 			};
 			openalexEmail.value = "";
 		}

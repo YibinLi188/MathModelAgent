@@ -24,6 +24,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useApiKeyStore } from "@/stores/apiKeys";
+import { OPENAI_NEXT_DEFAULTS } from "@/utils/providerDefaults";
 import { CheckCircle, XCircle } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
 
@@ -39,7 +40,7 @@ const apiKeyStore = useApiKeyStore();
 /** API 类型选项 */
 const apiTypeOptions = [
 	{ value: "openai-chat", label: "OpenAI Chat" },
-	{ value: "openai-responses", label: "OpenAI Responses" },
+	{ value: "openai-responses", label: "OpenAI Responses / Next Credits" },
 	{ value: "anthropic", label: "Anthropic" },
 ];
 
@@ -52,6 +53,23 @@ interface AgentFormConfig {
 	contextWindow: number;
 }
 
+const defaultAgentConfig = (): AgentFormConfig => ({
+	apiKey: "",
+	...OPENAI_NEXT_DEFAULTS,
+});
+
+const normalizeAgentConfig = (
+	config?: Partial<AgentFormConfig>,
+): AgentFormConfig => ({
+	...defaultAgentConfig(),
+	...config,
+	apiKey: config?.apiKey || "",
+	baseUrl: config?.baseUrl || OPENAI_NEXT_DEFAULTS.baseUrl,
+	modelId: config?.modelId || OPENAI_NEXT_DEFAULTS.modelId,
+	apiType: config?.apiType || OPENAI_NEXT_DEFAULTS.apiType,
+	contextWindow: config?.contextWindow || OPENAI_NEXT_DEFAULTS.contextWindow,
+});
+
 /** 本地表单数据 */
 const form = ref<{
 	coordinator: AgentFormConfig;
@@ -61,32 +79,16 @@ const form = ref<{
 	openalex_email: string;
 }>({
 	coordinator: {
-		apiKey: "",
-		baseUrl: "",
-		modelId: "",
-		apiType: "",
-		contextWindow: 128000,
+		...defaultAgentConfig(),
 	},
 	modeler: {
-		apiKey: "",
-		baseUrl: "",
-		modelId: "",
-		apiType: "",
-		contextWindow: 128000,
+		...defaultAgentConfig(),
 	},
 	coder: {
-		apiKey: "",
-		baseUrl: "",
-		modelId: "",
-		apiType: "",
-		contextWindow: 128000,
+		...defaultAgentConfig(),
 	},
 	writer: {
-		apiKey: "",
-		baseUrl: "",
-		modelId: "",
-		apiType: "",
-		contextWindow: 128000,
+		...defaultAgentConfig(),
 	},
 	openalex_email: "",
 });
@@ -105,11 +107,6 @@ const validationResults = ref({
 
 // ---- Computed ----
 
-/** 判断所有验证是否都通过 */
-const allValid = computed(() => {
-	return Object.values(validationResults.value).every((result) => result.valid);
-});
-
 /** 模型配置列表 */
 const modelConfigs = computed(() => [
 	{ key: "coordinator", label: "协调者模型配置" },
@@ -122,10 +119,10 @@ const modelConfigs = computed(() => [
 
 /** 从 store 加载数据到表单 */
 const loadFromStore = () => {
-	form.value.coordinator = { ...apiKeyStore.coordinatorConfig };
-	form.value.modeler = { ...apiKeyStore.modelerConfig };
-	form.value.coder = { ...apiKeyStore.coderConfig };
-	form.value.writer = { ...apiKeyStore.writerConfig };
+	form.value.coordinator = normalizeAgentConfig(apiKeyStore.coordinatorConfig);
+	form.value.modeler = normalizeAgentConfig(apiKeyStore.modelerConfig);
+	form.value.coder = normalizeAgentConfig(apiKeyStore.coderConfig);
+	form.value.writer = normalizeAgentConfig(apiKeyStore.writerConfig);
 	form.value.openalex_email = apiKeyStore.openalexEmail;
 };
 
@@ -186,9 +183,9 @@ const validateModelApiKey = async (config: {
 	try {
 		const result = await validateApiKey({
 			api_key: config.apiKey,
-			base_url: config.baseUrl || "https://api.openai.com/v1",
+			base_url: config.baseUrl || OPENAI_NEXT_DEFAULTS.baseUrl,
 			model_id: config.modelId,
-			api_type: config.apiType || "openai-chat",
+			api_type: config.apiType || OPENAI_NEXT_DEFAULTS.apiType,
 		});
 
 		return {
@@ -257,34 +254,10 @@ const validateAllApiKeys = async () => {
 /** 重置所有表单数据 */
 const resetAll = () => {
 	form.value = {
-		coordinator: {
-			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
-		},
-		modeler: {
-			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
-		},
-		coder: {
-			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
-		},
-		writer: {
-			apiKey: "",
-			baseUrl: "",
-			modelId: "",
-			apiType: "",
-			contextWindow: 128000,
-		},
+		coordinator: defaultAgentConfig(),
+		modeler: defaultAgentConfig(),
+		coder: defaultAgentConfig(),
+		writer: defaultAgentConfig(),
 		openalex_email: "",
 	};
 };
@@ -341,12 +314,12 @@ const resetAll = () => {
             <div class="space-y-1">
               <Label :for="`${config.key}-base-url`" class="text-xs text-muted-foreground">Base URL</Label>
               <Input :id="`${config.key}-base-url`" v-model.trim="(form as any)[config.key].baseUrl"
-                placeholder="https://api.openai.com/v1" class="h-7 text-xs" />
+                placeholder="https://api.openai-next.com/v1" class="h-7 text-xs" />
             </div>
             <div class="space-y-1">
               <Label :for="`${config.key}-model-id`" class="text-xs text-muted-foreground">Model ID</Label>
               <Input :id="`${config.key}-model-id`" v-model.trim="(form as any)[config.key].modelId"
-                placeholder="gpt-4o / claude-sonnet-4-20250514" class="h-7 text-xs" />
+                placeholder="gpt-5.5 / claude-sonnet-4-20250514" class="h-7 text-xs" />
             </div>
           </div>
           <div class="space-y-1">

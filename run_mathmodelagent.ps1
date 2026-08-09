@@ -6,9 +6,9 @@
 param(
     [ValidateSet("docker", "local")]
     [string]$Mode = "docker",
-    [string]$ApiType = "openai-chat",
-    [string]$Model = "gpt-4o-mini",
-    [string]$BaseUrl = "https://api.openai.com/v1",
+    [string]$ApiType = "openai-responses",
+    [string]$Model = "gpt-5.5",
+    [string]$BaseUrl = "https://api.openai-next.com/v1",
     [string]$ApiKey,
     [switch]$SeparateKeys,
     [switch]$NoFrontend,

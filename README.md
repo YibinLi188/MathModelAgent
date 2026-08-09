@@ -89,11 +89,13 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\run_mathmodelagent.ps1
 ```
 
-脚本默认使用 OpenAI 兼容接口、`gpt-4o-mini` 和 Docker。它会安全地提示输入一个 API Key，并将同一个 Key 配置给四个 Agent；Key 只写入被 `.gitignore` 忽略的 `backend/.env.dev`，不会打印或提交。使用其他兼容服务时只需改参数，例如：
+脚本默认使用 OpenAI Next Credits 的 Responses API、`gpt-5.5` 和 Docker。它会安全地提示输入一个 API Key，并将同一个 Key 配置给四个 Agent；Key 只写入被 `.gitignore` 忽略的 `backend/.env.dev`，不会打印或提交。使用其他兼容服务时只需改参数，例如：
 
 ```powershell
 .\run_mathmodelagent.ps1 -Model deepseek-chat -BaseUrl https://api.deepseek.com/v1
 ```
+
+OpenAI Next Credits 的默认配置对应：`openai-responses`、`https://api.openai-next.com/v1`。该服务商文档要求 Responses API；不要把它改成 `openai-chat`，否则可能收到 404 或协议错误。
 
 需要四个不同 Key 时加 `-SeparateKeys`；没有 Docker 时可用 `-Mode local`（需要 Python、Node.js、pnpm 和 Redis）。OpenAlex 邮箱是可选项，不填写不影响核心四 Agent 流程。停止 Docker 服务：`docker compose down`。
 

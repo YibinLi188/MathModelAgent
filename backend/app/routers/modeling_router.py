@@ -35,9 +35,9 @@ _active_tasks: Dict[str, Tuple[asyncio.Task, asyncio.Event]] = {}
 
 class ValidateApiKeyRequest(BaseModel):
     api_key: str
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = "https://api.openai-next.com/v1"
     model_id: str
-    api_type: str = "openai-chat"
+    api_type: str = "openai-responses"
 
 
 class ValidateOpenalexEmailRequest(BaseModel):
@@ -133,9 +133,7 @@ async def validate_api_key(request: ValidateApiKeyRequest):
             messages=[{"role": "user", "content": "Hi"}],
             model=request.model_id,
             api_key=request.api_key,
-            base_url=request.base_url
-            if request.base_url != "https://api.openai.com/v1"
-            else None,
+            base_url=request.base_url or None,
             max_tokens=1,
         )
 
