@@ -11,6 +11,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 ## 数学建模规范参考
 
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的“题型防错速查”“代码实现与结果”“编码阶段常见错误”和“图表与可视化”小节。该文件只作为规范知识库，不新增本阶段的固定产物。
+结果字段和指标语义按 `../_references/result_contract.md` 执行。
 
 ## 阶段边界
 
@@ -88,13 +89,37 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 `status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
 
+每个核心指标还必须有可审计的语义声明。推荐在结果 JSON 增加：
+
+```json
+{
+  "metric_semantics": {
+    "throughput_mbps": {
+      "quantity": "successful_payload_rate",
+      "unit": "Mbps",
+      "numerator": "expected_successful_payloads",
+      "concurrency_rule": "count_each_successful_object"
+    }
+  },
+  "validation": {
+    "independent_recompute": true,
+    "independent_delta": 0.0,
+    "tolerance": 1e-6
+  }
+}
+```
+
+明确区分 `event_probability`（例如至少一个节点发送）、`successful_object_count`（例如成功数据包数）和 `throughput`。并发成功时不能把一个非空事件自动当成一个成功对象；必须保存单对象、双对象及期望成功对象数，或给出等价的逐对象计数证明。仿真统计也必须使用同一计数口径。
+
 ### Step 3.2：数据和时间序列闸门
 
 运行前生成 `data/data_manifest.json`，记录来源、接收时间、SHA-256、字段单位、行列数和缺失率。训练/验证/回放按时间先后切分，禁止随机打乱时序样本。标准化、缺失填补和目标编码只能在训练集拟合，再应用于验证集；代码必须打印实际切分边界和有效样本量。样本少于参数量的模型不得作为主模型，除非报告明确降级并解释原因。
 
 ### Step 3.3：独立复核
 
-代码手完成主计算后，必须用独立函数、独立参数重建或保存的中间表重新计算至少一个核心指标和一个关键结论。两次结果的绝对差必须写入 JSON；超过 `1e-6`（或报告中声明的数值容差）则标记 `verification_failed`。
+代码完成主计算后，必须用独立函数、独立参数重建或保存的中间表重新计算至少一个核心指标和一个关键结论。两次结果的绝对差必须写入 JSON；超过 `1e-6`（或报告中声明的数值容差）则标记 `verification_failed`。
+
+独立复核不得只是再次调用同一个生成函数或读取论文中的硬编码数字。至少保留一个纯函数/中间表 oracle，并对边界场景执行测试：单节点、两个对象并发成功、两个对象并发失败、零丢包和最大题面丢包。随机仿真应记录完整种子列表、重复次数、样本标准差或置信区间、运行时长以及 Python/依赖版本。
 
 ### Step 4: 生成数据驱动图表
 
@@ -115,6 +140,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 - 不生成流程图/架构图/路线图。
 
 图表可以由主程序或独立脚本生成，不强制固定脚本名。无论采用哪种方式，都必须保存图表对应的数据来源和生成记录。
+
+图表生成结束后，检查每个图表的源数据、单位、参数筛选条件和随机种子是否能回到结果 JSON；没有来源记录的图表不得交给写作阶段。
 
 ### Step 5：交接阻断
 

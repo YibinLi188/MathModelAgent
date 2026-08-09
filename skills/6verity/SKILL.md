@@ -11,6 +11,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 ## 数学建模规范参考
 
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的"论文验收与一致性"小节。该文件只是规范知识库，不是固定执行流程；具体目录、入口文件、结果文件和图表目录由当前项目结构决定。
+结构化结果字段和指标语义按 `../_references/result_contract.md` 执行。
 
 ## 阶段边界
 
@@ -38,7 +39,24 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 先扫描 `results/*.json` 和 `data/data_manifest.json`。每个顶层子问题都必须有可解析 JSON、`status=success`、数据哈希、样本量、核心指标、产物路径和验证记录。若任一文件缺失、状态为 `failed`、哈希为空或产物不存在，直接判定 `FAIL`，不得用论文中的自然语言补齐。
 
+若本 Skill 附带 `scripts/validate_results_contract.py`，先运行：
+
+```bash
+python <skill-dir>/scripts/validate_results_contract.py \
+  --results-dir <project-root>/results \
+  --project-root <project-root> \
+  --expected-tasks ques1,ques2,ques3
+```
+
+Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `python3`。按题目实际问题数替换 `--expected-tasks`。该脚本是结构检查，不替代模型 oracle；脚本失败必须保留失败输出并阻断写作。
+
 对至少一个核心指标执行独立重算：优先调用项目提供的验证脚本；没有独立脚本时，使用保存的中间表和第二段纯函数计算。记录两次结果及绝对差，超过项目声明容差即 `FAIL`。时间序列必须检查训练集年份严格早于验证/回放年份，并确认标准化、填补和编码未使用未来数据。
+
+结果契约还必须声明指标语义：事件概率、成功对象数、节点级指标和系统级指标不可混用。检查吞吐、流量、计数等指标的单位、分子、分母和并发规则；“至少一个对象发生”不能直接作为“成功对象数”。每个核心指标必须有 `metric_semantics`、`independent_delta` 和 `tolerance`，缺失即 `FAIL`。
+
+检查 `reports/QUESTION_COVERAGE.md`（若入口阶段生成）中的每个顶层问题和 `gap` 状态。存在未覆盖的题面边界、拓扑情景或参数范围时，验收结论最多为 `WARN`；若论文摘要声称已完成全部问题，则判定 `FAIL`。
+
+若 `paper/` 只有 `paper.md` 而没有选定引擎的 `main.typ`/`main.tex` 和编译 PDF，必须标记为“草稿未提交就绪”，不能写 `PASS`。
 
 
 ### Step 1: 运行文本质量门禁
@@ -104,6 +122,7 @@ bash "$SCRIPT_PATH" \
 - 连续图表之间是否有足够解释文字。
 - caption 是否过长、过泛或与图意不一致。
 - 图表编号、正文引用和章节语义是否一致。
+- 正文必须有实际图片嵌入语法；仅出现反引号文件路径、自然语言路径或未解析的 Markdown 路径不算图表引用。
 
 不要生成 `*_typst_includes.typ` 或 `*_latex_includes.tex`；图表必须直接嵌在对应 section 中。
 
@@ -127,6 +146,8 @@ bash "$SCRIPT_PATH" \
 - 公式中的符号应在符号说明或正文首次出现处解释。
 
 发现数值冲突时，不要自行发明新结果；应回到结果记录或代码输出修正论文。
+
+同时核对结果 JSON 的指标语义和论文公式：若理论分子统计的是事件而论文结论声称统计成功对象，必须退回代码阶段修正；不能通过重新计算一个相同错误的公式来“自证”。
 
 同时检查数据血缘：论文关键数字必须能在 `results/*.json` 找到，结果 JSON 的 `data_hashes` 必须能在 `data/data_manifest.json` 找到，快照文件必须仍存在。代理变量、事后回放和缺少官方口径等限制必须同时出现在论文和验收报告中。
 
@@ -221,6 +242,8 @@ PASS / FAIL
 
 ## 仍需处理的问题
 ```
+
+验收报告必须列出实际运行根目录、入口文件、结果 JSON、图表、代码版本、依赖版本、随机种子、运行命令、独立复算公式及 SHA-256。目录存在性检查只能作为辅助项，不能替代数学正确性和跨文件一致性检查。
 
 只有当硬错误都修复、文本门禁通过、核心图表都引用、数值一致、编译通过或明确说明不可编译原因、视觉检查通过或明确说明无法执行原因时，才写 `PASS`。
 

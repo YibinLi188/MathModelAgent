@@ -9,6 +9,8 @@ settings.local.json
 dump.rdb
 backend/.env.dev
 .trae/
+__pycache__/
+*.py[cod]
 
 # 字体文件（用户自行安装，见 README）
 # 微软字体（SimHei/SimSun/SimKai）有版权限制，不提交

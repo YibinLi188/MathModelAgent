@@ -8,6 +8,14 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 本 skill 是数学建模竞赛项目的总控入口。它不替代后续阶段 skill，而是负责启动流程、询问偏好、记录决策、生成计划，并按顺序调用各阶段 skill。
 
+## 研究证据与题目契约
+
+启动时先锁定真实题面和对标证据，再让下游阶段建模。用户要求学习竞赛资料时，建立 `reports/SOURCE_MANIFEST.md`，至少记录题面来源、附件来源、抓取时间、SHA-256、相关论文目录和选定代表性优秀论文（年份、题号、队伍/论文编号、页数、选择理由）。如果用户要求“全部查看”，必须按目录逐项记录处理状态；不能只看一篇论文后声称已完成全部资料学习。
+
+同时建立 `reports/QUESTION_COVERAGE.md`，逐个顶层问题登记：题面原文位置、输出对象、参数边界、场景组合、理论模型、仿真实验、图表、结论和验证状态。任何题面条件未覆盖，都要标为 `gap`，不得在摘要中写成已完成。
+
+最终输出目录必须以实际探测到的工作根目录为准，并写入 `plan.md`。禁止把示例路径、容器路径或不存在的目录写进验收结论。
+
 ## 数学建模规范参考
 
 如需领域判断，读取 `../_references/math_modeling_norms.md`。该文件只提供数学建模基本规范和防错知识，不改变本 skill 的阶段顺序和产出约定。
@@ -18,6 +26,9 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 - `plan.md`：整体流程方案、建模方向、阶段顺序、预期产物和风险控制。
 - `todo.md`：具体待办事项列表，记录每个阶段的任务和状态。
+- `reports/SOURCE_MANIFEST.md`：题面、附件、资料库和对标论文的来源与处理状态。
+- `reports/QUESTION_COVERAGE.md`：顶层问题、边界条件、情景、指标、图表和验证的覆盖矩阵。
+- `data/data_manifest.json`：数据快照、哈希、单位和允许派生操作。
 
 ## 工作流
 
@@ -49,6 +60,9 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 - 竞赛类型：<国赛 / 华为杯 / MCM / ...>
 - 论文语言：<中文 / 英文>
 - 子问题数量：<已知 N 个 / 待分析确定>
+- 资料范围：<题面/附件/优秀论文目录/全部相关资料>
+- 结果根目录：<实际绝对路径>
+- 对标论文：<代表性论文及选择理由>
 
 workflow:
    step      skills
@@ -69,9 +83,13 @@ workflow:
 ├── todo.md                      # 1: 待办事项
 ├── reports/                     # 各阶段文档报告
 │   ├── ANALYSIS_MODELING_REPORT.md  # 1: 赛题分析-建模报告（2analysis-modeling）
+│   ├── SOURCE_MANIFEST.md           # 1: 题面、附件和对标资料证据清单
+│   ├── QUESTION_COVERAGE.md         # 1: 子问题条件、情景、指标和验证覆盖矩阵
 │   ├── RESULTS_REPORT.md            # 2: 结果报告（3coding-visual）
 │   ├── DRAWIO_REPORT.md             # 3: 非数据图说明（4drawio）
 │   ├── VERIFY_REPORT.md             # 5: 验收报告（6verity）
+├── data/                        # 1/2: 原始数据快照和数据契约
+│   └── data_manifest.json
 ├── code/                        # 2: 代码（3coding-visual）
 │   ├── problem1.py
 │   ├── problem2.py
@@ -136,6 +154,9 @@ workflow:
 3. **模型契约**：`ANALYSIS_MODELING_REPORT.md` 必须为每个子问题写出目标、变量、假设、约束、评价指标、失败条件和最小可行基线。只写“使用某算法”不算通过。
 4. **信息边界**：明确哪些值是赛时可知、哪些是事后回放、哪些是代理变量。任何代理口径都必须出现在摘要、数据章节和结论限制中。
 5. **阶段状态**：只有 `analysis_passed` 才能进入代码阶段；只有 `code_passed`（至少一次成功执行、结果文件存在、图表路径可解析）才能进入写作阶段；任一阶段失败都必须阻断下游并留下错误报告。
+6. **资料证据**：`SOURCE_MANIFEST.md` 中每个声明为“已查看”的来源必须有本地快照或可复核链接；选定的对标论文必须说明为什么能代表题目，而不是只按文件名选择。
+7. **覆盖证据**：`QUESTION_COVERAGE.md` 的每个问题必须有至少一个可执行模型、一个结果对象和一个校验方法；存在 `gap` 时状态不得为 `analysis_passed`。
+8. **输出形态**：写作阶段的最终交付必须包含可编译的 `main.typ` 或 `main.tex` 及 PDF；`paper.md` 只能作为草稿或中间交换格式，不能单独标记为提交就绪。
 
 阶段之间只允许传递结构化结果，不允许把“错误文本”当作结果摘要。推荐使用如下最小契约字段：
 
