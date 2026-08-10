@@ -1,6 +1,6 @@
 ---
 name: 1start-mathmodel
-description: "数学建模竞赛工作流入口。用于启动完整建模流程：询问用户偏好，生成 plan.md 和 todo.md，并按阶段调用赛题分析、建模、代码与图表、流程图、论文撰写、验证验收等 skills。"
+description: "数学建模竞赛工作流入口。用于启动完整建模流程：询问用户偏好，生成 plan.md 和 todo.md，并按阶段调用赛题分析、建模、代码与图表、流程图、论文撰写、验证验收等 skills；对题面含计算、存储、时间、成本或资源优化目标的任务，强制建立可复算资源基线和帕累托验收。"
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetch
 ---
 
@@ -29,6 +29,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 - `reports/SOURCE_MANIFEST.md`：题面、附件、资料库和对标论文的来源与处理状态。
 - `reports/QUESTION_COVERAGE.md`：顶层问题、边界条件、情景、指标、图表和验证的覆盖矩阵。
 - `data/data_manifest.json`：数据快照、哈希、单位和允许派生操作。
+- `reports/RESOURCE_BASELINE.md`：仅当题面含计算复杂度、存储、时间、成本、能耗或资源利用率目标时创建；记录可复现基线、候选方案、单位、质量约束和帕累托选择证据。
 
 ## 工作流
 
@@ -63,6 +64,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 - 资料范围：<题面/附件/优秀论文目录/全部相关资料>
 - 结果根目录：<实际绝对路径>
 - 对标论文：<代表性论文及选择理由>
+- 资源目标：<无 / 题面原文的计算、存储、时间、成本或能耗指标；基线定义>
 
 workflow:
    step      skills
@@ -85,6 +87,7 @@ workflow:
 │   ├── ANALYSIS_MODELING_REPORT.md  # 1: 赛题分析-建模报告（2analysis-modeling）
 │   ├── SOURCE_MANIFEST.md           # 1: 题面、附件和对标资料证据清单
 │   ├── QUESTION_COVERAGE.md         # 1: 子问题条件、情景、指标和验证覆盖矩阵
+│   ├── RESOURCE_BASELINE.md          # 1/2: 资源优化题的基线、候选与帕累托证据
 │   ├── RESULTS_REPORT.md            # 2: 结果报告（3coding-visual）
 │   ├── DRAWIO_REPORT.md             # 3: 非数据图说明（4drawio）
 │   ├── VERIFY_REPORT.md             # 5: 验收报告（6verity）
@@ -157,6 +160,8 @@ workflow:
 6. **资料证据**：`SOURCE_MANIFEST.md` 中每个声明为“已查看”的来源必须有本地快照或可复核链接；选定的对标论文必须说明为什么能代表题目，而不是只按文件名选择。
 7. **覆盖证据**：`QUESTION_COVERAGE.md` 的每个问题必须有至少一个可执行模型、一个结果对象和一个校验方法；存在 `gap` 时状态不得为 `analysis_passed`。
 8. **输出形态**：写作阶段的最终交付必须包含可编译的 `main.typ` 或 `main.tex` 及 PDF；`paper.md` 只能作为草稿或中间交换格式，不能单独标记为提交就绪。
+9. **资源目标（条件闸门）**：若题面要求低复杂度、低存储、低时间、低成本、低能耗或资源优化，先在 `RESOURCE_BASELINE.md` 固定一个可执行基线（算法/参数/数据切分、资源单位、质量指标和运行命令），再列出全部候选的“质量约束--资源指标”表。候选必须同时满足所有题设质量阈值，并在至少一项同单位资源上相对基线严格改善，才能标记 `resource_passed`。多目标题若存在不可避免的资源冲突，必须明确采用 `pareto_tradeoff`：逐项列出未改善的资源、数值、原因和适用边界；不得把它概括为全维度优化。不能把未运行的渐近式、只满足精度的方案、或只报告平均值而最坏情景失败的方案写成优化完成。若没有可行候选，状态为 `resource_gap`，必须阻断把该优化子问题写为完成。
+10. **引擎状态**：所选 Typst/LaTeX 引擎可用却编译失败、超时或需未完成的交互安装时，验收状态必须是 `engine_failed`。可用其他渲染器做版式预览，但该 PDF 只能标为 `rendered_preview`，不得代替所选入口的“提交就绪”编译产物。
 
 阶段之间只允许传递结构化结果，不允许把“错误文本”当作结果摘要。推荐使用如下最小契约字段：
 
@@ -174,4 +179,4 @@ workflow:
 
 ## 失败处理
 
-失败必须是显式状态而不是自然语言占位：`blocked_input`、`invalid_plan`、`code_failed`、`verification_failed`。达到重试上限后立即停止当前子任务，保存错误、最后一次代码和输入哈希；禁止继续生成看似完整的论文。最终验收必须能从论文数值追溯到结构化结果文件，再追溯到数据快照。
+失败必须是显式状态而不是自然语言占位：`blocked_input`、`invalid_plan`、`resource_gap`、`code_failed`、`engine_failed`、`verification_failed`。达到重试上限后立即停止当前子任务，保存错误、最后一次代码和输入哈希；禁止继续生成看似完整的论文。最终验收必须能从论文数值追溯到结构化结果文件，再追溯到数据快照。

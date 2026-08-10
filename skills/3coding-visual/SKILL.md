@@ -75,6 +75,14 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
   "data_hashes": ["sha256:..."],
   "sample": {"n_total": 0, "n_train": 0, "n_validation": 0},
   "metrics": {"mae": 0.0, "rmse": 0.0},
+  "resource": {
+    "status": "resource_passed",
+    "decision_rule": "strict_improvement | pareto_tradeoff",
+    "quality_constraints": {"constraint_name": true},
+    "baseline": {"id": "...", "run_command": "...", "metrics": {"runtime": {"value": 0.0, "unit": "s", "direction": "min"}}},
+    "candidate": {"id": "...", "run_command": "...", "metrics": {"runtime": {"value": 0.0, "unit": "s", "direction": "min"}}},
+    "comparison": {"strict_improvements": ["runtime"], "accepted_tradeoffs": [], "worst_case_scope": "..."}
+  },
   "parameters": {},
   "artifacts": ["figures/ques1.png"],
   "validation": {
@@ -108,6 +116,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
   }
 }
 ```
+
+题面含资源优化目标时，每个相关 JSON 必须补充 `resource` 对象，并遵循 `../_references/result_contract.md`。资源计数必须覆盖模型参数、预处理、压缩/解压、推理或求解中题面要求计入的部分；真实运行时间应记录机器、重复次数和统计量。候选不满足全部质量约束时不得拿它的资源数参与“最优”比较。只有同单位的严格改善可写入 `strict_improvements`。存储与编码/解码天然冲突时，用 `pareto_tradeoff` 逐项记录代价；没有严格改善、质量约束为假，或把未解释代价藏在汇总指标中，均标记为 `resource_gap`，不得交给写作阶段作为优化完成。
 
 明确区分 `event_probability`（例如至少一个节点发送）、`successful_object_count`（例如成功数据包数）和 `throughput`。并发成功时不能把一个非空事件自动当成一个成功对象；必须保存单对象、双对象及期望成功对象数，或给出等价的逐对象计数证明。仿真统计也必须使用同一计数口径。
 
@@ -145,4 +155,4 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 ### Step 5：交接阻断
 
-代码阶段结束前，逐个检查 `results/*.json`。任何子问题缺少结果文件、数据哈希、样本量、验证记录或图表路径时，必须阻断写作阶段，并在 `reports/RESULTS_REPORT.md` 中给出可操作的修复项。写作手只能读取通过闸门的结构化结果，不能从自然语言错误日志猜测数值。
+代码阶段结束前，逐个检查 `results/*.json`。任何子问题缺少结果文件、数据哈希、样本量、验证记录或图表路径时，必须阻断写作阶段，并在 `reports/RESULTS_REPORT.md` 中给出可操作的修复项。题面有资源目标时，缺少可运行基线、资源单位、最坏情景资源汇总或严格改善证据同样必须阻断写作阶段。写作手只能读取通过闸门的结构化结果，不能从自然语言错误日志猜测数值。

@@ -24,6 +24,27 @@
 | `limitations` | 近似、未覆盖情景和外推边界 |
 | `error` | 成功时为 `null` |
 
+题面含计算、存储、时间、成本、能耗或资源利用率目标时，还必须包含 `resource` 对象。该对象是结果声明，不替代独立复算：
+
+```json
+{
+  "resource": {
+    "status": "resource_passed",
+    "decision_rule": "strict_improvement | pareto_tradeoff",
+    "quality_constraints": {"rho_min_ge_0_99": true},
+    "baseline": {"id": "...", "run_command": "...", "metrics": {"runtime": {"value": 1.0, "unit": "s", "direction": "min"}}},
+    "candidate": {"id": "...", "run_command": "...", "metrics": {"runtime": {"value": 0.8, "unit": "s", "direction": "min"}}},
+    "comparison": {
+      "strict_improvements": ["runtime"],
+      "accepted_tradeoffs": [],
+      "worst_case_scope": "..."
+    }
+  }
+}
+```
+
+`baseline` 与 `candidate` 的每项用于比较的资源指标必须具有相同的名称、单位和方向；`strict_improvements` 中每项必须按其方向严格优于基线。`quality_constraints` 中不得有 `false` 值。对于天然存在存储--编码成本冲突的压缩题，可使用 `pareto_tradeoff`：至少一项题设资源必须严格改善，未改善项必须逐项列入 `accepted_tradeoffs`，写明方向、数值、原因和结论边界。此时论文只能陈述已验证的帕累托取舍，不能概括为“所有资源均降低”。
+
 统计对象的语义必须保持一致：
 
 - `event_probability`：一个事件在时间窗中发生的概率，例如“至少一个节点发送”。
