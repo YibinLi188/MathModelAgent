@@ -5,14 +5,13 @@
 %
 %  字体依赖（正文宋体 / 标题黑体 / 强调楷体）：
 %    - 规范字体：SimSun（宋体）、SimHei（黑体）、KaiTi（楷体）。
-%    - 本模板默认使用 ctex 的 fontset=mac，在 macOS 上自动选用同族等价字体
-%      Songti SC / Heiti SC / Kaiti SC，确保开箱即用。
-%    - 若系统已安装 SimSun/SimHei/KaiTi（如 Windows 或手动安装），可将下方
-%      \documentclass 选项 fontset=mac 改为 fontset=windows，即可使用规范字体。
-%    - 西文正文：Times New Roman；代码等宽：Menlo（缺失时回退到默认字体）。
+%    - CUMCM 常用 Windows 环境，因此本模板默认使用 ctex 的 windows 字体集；
+%      不执行 Times New Roman/Menlo 等可选字体探测，避免缺失字体时停滞。
+%    - macOS/Linux 使用者应在复制模板后显式改为 fontset=mac/fandol，并先做一次
+%      最小编译验证；不要在正式论文首次编译时自动猜测平台。
 %  编译方式：xelatex main.tex （需运行两遍以生成目录）
 % =============================================================================
-\documentclass[fontset=mac, 12pt, a4paper]{ctexart}
+\documentclass[fontset=windows, 12pt, a4paper]{ctexart}
 
 % ---------- 页面：A4，上下左右 2.5cm ----------
 \usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm]{geometry}
@@ -21,11 +20,8 @@
 \usepackage{amsmath}
 
 % ---------- 字体（fontspec + ctex，xelatex 编译） ----------
-% 中文宋体/黑体/楷体由 ctex 的 fontset=mac 自动设置（Songti SC / Heiti SC / Kaiti SC），
+% 中文宋体/黑体/楷体由 ctex 的 fontset=windows 设置，
 % 并自动定义 \songti / \heiti / \kaishu 等字体命令。
-% 西文正文与代码等宽字体：
-\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{}
-\IfFontExistsTF{Menlo}{\setmonofont{Menlo}}{}
 
 % ---------- 正文：12.05pt，首行缩进 2em，两端对齐，行距 0.72em ----------
 % 12pt 字号近似 12.05pt；0.72em 行距 => 行高 = 1.72 * 字号，\linespread 因子 ≈ 1.43

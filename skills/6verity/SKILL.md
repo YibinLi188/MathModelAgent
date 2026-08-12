@@ -37,7 +37,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 ### Step 0：结构化结果闸门（先于文本检查）
 
-先扫描 `results/*.json` 和 `data/data_manifest.json`。每个顶层子问题都必须有可解析 JSON、`status=success`、数据哈希、样本量、核心指标、产物路径和验证记录。若任一文件缺失、状态为 `failed`、哈希为空或产物不存在，直接判定 `FAIL`，不得用论文中的自然语言补齐。
+先扫描 `results/*.json` 和 `data/data_manifest.json`。每个顶层子问题都必须有可解析 JSON、`schema_version=1.1`、`status=success`、数据哈希、样本量、核心指标、产物路径、验证记录和 `solution_evidence`。若任一文件缺失、状态为 `failed`、哈希为空或产物不存在，直接判定 `FAIL`，不得用论文中的自然语言补齐。
 
 若本 Skill 附带 `scripts/validate_results_contract.py`，先运行：
 
@@ -53,6 +53,14 @@ Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `p
 对至少一个核心指标执行独立重算：优先调用项目提供的验证脚本；没有独立脚本时，使用保存的中间表和第二段纯函数计算。记录两次结果及绝对差，超过项目声明容差即 `FAIL`。时间序列必须检查训练集年份严格早于验证/回放年份，并确认标准化、填补和编码未使用未来数据。
 
 结果契约还必须声明指标语义：事件概率、成功对象数、节点级指标和系统级指标不可混用。检查吞吐、流量、计数等指标的单位、分子、分母和并发规则；“至少一个对象发生”不能直接作为“成功对象数”。每个核心指标必须有 `metric_semantics`、`independent_delta` 和 `tolerance`，缺失即 `FAIL`。
+
+分别检查可行性、收敛和最优性：`solver_converged=false` 时只允许 `optimality_claim=feasible_only|not_applicable`，并核对摘要、正文和结论没有使用“最优解/全局最优”等越级措辞。`local_converged` 或 `global_proven` 必须有正常终止原因和稳定性证据；`global_proven` 还必须有界、穷举或证明。状态与措辞冲突即 `FAIL`。
+
+若同题参考结果冲突或模型存在多种物理/统计口径，检查 `comparison_semantics` 及口径敏感性结果。表面/对象模型、分子、分母、权重、采样单位或边界不同的数值被直接计算相对误差、排序或当作正确性证据时，判定 `FAIL`。
+
+对所有优化结论检查 `optimization_domain`：变量类型、上下界、开闭边界、是否允许未观测组合、插值/外推和安全域任一缺失则 `FAIL`。题面严格不等式被实现为闭边界、网格最靠近边界点被宣称为精确最优、代理模型外推值与实测/插值值未分层标注，均判定 `FAIL`。若一组实体有多条观测，验证划分必须报告分组键与组间重叠计数；用行级随机拆分宣称新实体泛化时判定 `FAIL`。
+
+题目要求新增少量实验时，逐项检查其信息目标与判废准则。全部实验只是无理由均匀铺点、重复已有点却未说明用于纯误差/复验、或候选越出题面与安全可行域时，判定 `FAIL`；若没有任何峰值、边界、交互、模型判别或重复误差证据目标，最多只能 `WARN`，不得写成“最优实验设计”。
 
 检查 `reports/QUESTION_COVERAGE.md`（若入口阶段生成）中的每个顶层问题和 `gap` 状态。存在未覆盖的题面边界、拓扑情景或参数范围时，验收结论最多为 `WARN`；若论文摘要声称已完成全部问题，则判定 `FAIL`。
 

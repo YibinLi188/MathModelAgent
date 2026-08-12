@@ -69,7 +69,7 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "status": "success",
   "task": "ques1",
   "data_hashes": ["sha256:..."],
@@ -90,12 +90,22 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
     "independent_recompute": true,
     "constraints_passed": true
   },
+  "solution_evidence": {
+    "feasibility_status": "feasible",
+    "solver_converged": false,
+    "termination_reason": "maximum function evaluations reached",
+    "optimality_claim": "feasible_only",
+    "restart_or_budget_checks": 3,
+    "stability_evidence": "objective and constraint margins stable across three budgets"
+  },
   "limitations": [],
   "error": null
 }
 ```
 
-`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。它只代表计算流程成功，不代表求解器收敛或最优。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+
+每个 JSON 必须写 `solution_evidence`。优化器达到最大迭代/评估次数、数值异常或人工中止时，`solver_converged=false` 且 `optimality_claim=feasible_only`；即使硬约束全部通过也不得写成 `local_converged`。声明局部或全局最优时必须保存终止原因、最优性指标以及多初值/多预算证据；全局最优还需保存界、穷举或证明依据。
 
 每个核心指标还必须有可审计的语义声明。推荐在结果 JSON 增加：
 
@@ -120,6 +130,10 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 题面含资源优化目标时，每个相关 JSON 必须补充 `resource` 对象，并遵循 `../_references/result_contract.md`。资源计数必须覆盖模型参数、预处理、压缩/解压、推理或求解中题面要求计入的部分；真实运行时间应记录机器、重复次数和统计量。候选不满足全部质量约束时不得拿它的资源数参与“最优”比较。只有同单位的严格改善可写入 `strict_improvements`。存储与编码/解码天然冲突时，用 `pareto_tradeoff` 逐项记录代价；没有严格改善、质量约束为假，或把未解释代价藏在汇总指标中，均标记为 `resource_gap`，不得交给写作阶段作为优化完成。
 
 明确区分 `event_probability`（例如至少一个节点发送）、`successful_object_count`（例如成功数据包数）和 `throughput`。并发成功时不能把一个非空事件自动当成一个成功对象；必须保存单对象、双对象及期望成功对象数，或给出等价的逐对象计数证明。仿真统计也必须使用同一计数口径。
+
+若分析阶段给出了“可比口径矩阵”，为每个主口径保存 `comparison_semantics`，并至少运行两个合理口径或一个口径加理论上/下界。图表和结果表必须把不同口径分列，不得把表面模型、分母或采样单位不同的参考结果直接计算相对误差。
+
+执行优化前，将 `optimization_domain` 写入结果 JSON：变量名、类型、上下界、开/闭边界、可行组合来源、插值/外推策略和安全约束必须可机读。开边界用 `exclusive=true` 表示，不得为了方便求解器而改成闭边界；若实现采用网格近似，记录网格步长、最优点到边界的距离和至少两档更细网格的稳定性。代理模型按实体、组合、站点、患者或时间块分组切分；训练/验证/测试的分组键不得重叠，并输出重叠计数为0。
 
 ### Step 3.2：数据和时间序列闸门
 
