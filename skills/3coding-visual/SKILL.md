@@ -145,6 +145,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 线性受迫振动应尽可能同时生成频域和时域稳态结果，并保存关键幅值/平均功率差；非线性或时变系统至少保存全程功--能平衡残差。耗散元件必须断言瞬时耗散功率不为负。使用线性化、谐波平衡、代理或等效阻尼搜索时，候选必须再送入原微分方程和原目标函数；结果 JSON 同时保存近似值、原方程值和差异。
 
+几何光学/辐射/视线模型须保存 `ray_geometry_audit`，至少含 `coordinate_convention`、`incident_direction_semantics`、`reflection_residual_max`、`source_angular_model`、`emitter_sampling`、`occlusion_intersection`、`receiver_geometry`、`receiver_intersection`、`efficiency_denominators` 和 `grid_refinement`。有限光源或接收面不得被静默退化为中心光线/点接收器；使用代理效率搜索时，保存代理值和原光线回放值，最终功率与可行性只能取原光线回放。网格加密须同时改变发射面和光源角采样，报告核心指标最大相对变化；缺少几何边界例或反射定律残差时不得标记 `status=success`。
+
 边界候选须保存向可行域内部的扰动表。若近似目标形成等价脊/参数带，输出带的范围和可辨识性说明；若约束外候选看似更优，必须保留为负面测试并断言闸门拒绝。优化器返回值经过静默裁剪、四舍五入到边界或只在代理目标上更优时，`optimality_claim` 不得超过 `feasible_only`。
 
 逆问题、定位、反演、编队和标定结果须在每个相关 JSON 保存 `identifiability_audit`，至少包含 `unknown_dimension`、`independent_observation_dimension`、`gauge_transformations`、`anchors_or_priors`、`jacobian_rank`、`smallest_singular_value`、`condition_number`、`discrete_ambiguity_count` 和 `invariance_negative_tests`。代码必须验证锚定后的雅可比达到声明秩，并实际运行至少一个平移/旋转/尺度/镜像/标签置换负例；若负例仍满足观测且未由锚点或先验排除，结论只能是等价类或多解。不得以残差近零、方程数较多或求解器 `success` 代替可辨识性证据。
