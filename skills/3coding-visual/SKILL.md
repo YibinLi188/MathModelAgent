@@ -145,6 +145,10 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 边界候选须保存向可行域内部的扰动表。若近似目标形成等价脊/参数带，输出带的范围和可辨识性说明；若约束外候选看似更优，必须保留为负面测试并断言闸门拒绝。优化器返回值经过静默裁剪、四舍五入到边界或只在代理目标上更优时，`optimality_claim` 不得超过 `feasible_only`。
 
+逆问题、定位、反演、编队和标定结果须在每个相关 JSON 保存 `identifiability_audit`，至少包含 `unknown_dimension`、`independent_observation_dimension`、`gauge_transformations`、`anchors_or_priors`、`jacobian_rank`、`smallest_singular_value`、`condition_number`、`discrete_ambiguity_count` 和 `invariance_negative_tests`。代码必须验证锚定后的雅可比达到声明秩，并实际运行至少一个平移/旋转/尺度/镜像/标签置换负例；若负例仍满足观测且未由锚点或先验排除，结论只能是等价类或多解。不得以残差近零、方程数较多或求解器 `success` 代替可辨识性证据。
+
+声称多轮迭代调整或控制收敛时，须保存 `iteration_history`，逐轮记录选择集合、目标/残差、最大状态更新、约束裕度和终止原因；至少运行两个不同初值或扰动规模。生成一张真实迭代曲线或逐轮表，并将其列入 `artifacts`。只保存初态与终态时不得写“经多轮收敛”，只能写“联合批处理回放可行”。
+
 题目提供 Excel/CSV 结果模板时，最终产物必须由保留模板结构和样式的表格引擎写入。写后重新导入，对每个可写区域逐格比对结构化结果；同时检查工作表名、固定说明、公式、合并区域和非填写单元未变化。范围收缩、错列、四舍五入差异或模板公式被覆盖均为失败，不能只凭“文件能打开”放行。
 
 ### Step 3.2：数据和时间序列闸门
