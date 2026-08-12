@@ -137,6 +137,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 对结构零生成布尔观测掩码，并在结果 JSON 保存 `structural_zero_semantics`、`observed_count` 与 `structural_zero_count`。任何由均值、分位数、损耗率或概率进入目标函数/约束的统计量，必须断言其分母只含有效观测；至少用一个“把结构零误当观测”的反例测试证明闸门会报警。
 
+成分/份额数据须保存 `compositional_audit`：原始行和、有效区间、剔除行、闭合规则、零语义、零替换或检测限、log-ratio 变换、分组键和替换敏感性。若输出亚类，另存 `cluster_stability`，至少含候选 $k$、实体级重采样方案、ARI/共聚类分布、成员清单及 `claim_level=stable|exploratory`。若输出类别网络差异，保存 `network_difference_audit`，并断言检验矩阵、绘图矩阵、预处理和统计量哈希/数值一致；至少构造一次“检验 Pearson 矩阵却展示偏相关矩阵”的反例并拒绝。
+
 跨期优化须保存 `state_transition` 及逐期 `state_trace`，至少含期号、期初状态、流入、流出、期末状态和约束裕度。独立复算不得只比目标值；要从原始决策变量重放全部状态转移，并逐期检查容量、库存、守恒和终端约束。
 
 物理动力学实现须在结果 JSON 保存 `coordinate_convention`、`equilibrium_definition`、`component_inertia_audit` 与 `physical_residuals`。组合刚体的惯量审计至少列构件、质量分配、质心、参考轴、自身惯量和平行轴项；代码应检查各项非负且总质量一致。若题面允许多种几何解释，运行主口径与至少一个替代口径，保存状态量和目标值敏感性，禁止挑选最接近参考答案的口径后删除其余结果。
