@@ -149,6 +149,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 空间覆盖/路径规划模型须保存 `spatial_coverage_audit`，至少含 `domain_geometry`、`candidate_geometry`、`coverage_kernel`、`boundary_clipping`、`overlap_denominator`、`search_grid`、`final_replay_grid`、`uncovered_metric`、`excess_overlap_metric`、`candidate_family` 与 `optimality_scope`。粗筛、插值代理或平均参数产生的指标不得直接进入论文；最终总长度、漏测率、重复覆盖及可行性必须由原始空间数据回放生成。须保留至少一个被完整回放拒绝的候选或等价负例，并验证边界、空交集、全覆盖和网格加密情形；缺少原网格回放或把有限候选族写成全局最优时不得标记 `status=success`。
 
+内生决策响应模型须保存 `decision_response_audit`，至少含 `decision_variable`、`response_variable`、`assignment_mechanism`、`confounders`、`identification_design`、`identification_assumptions`、`response_semantics`、`decision_bounds`、`boundary_hit_rate`、`response_scenarios` 和 `robust_replay`。若 `identification_design=observational_only`，输出只能标记为关联预测或情景优化，不得标记因果最优。至少运行一组响应系数扰动和一组时间/实体外回测；最优决策大量贴边而未扩大/解释安全域，或仅在训练内报告拟合优度时，不得标记 `status=success`。
+
 边界候选须保存向可行域内部的扰动表。若近似目标形成等价脊/参数带，输出带的范围和可辨识性说明；若约束外候选看似更优，必须保留为负面测试并断言闸门拒绝。优化器返回值经过静默裁剪、四舍五入到边界或只在代理目标上更优时，`optimality_claim` 不得超过 `feasible_only`。
 
 逆问题、定位、反演、编队和标定结果须在每个相关 JSON 保存 `identifiability_audit`，至少包含 `unknown_dimension`、`independent_observation_dimension`、`gauge_transformations`、`anchors_or_priors`、`jacobian_rank`、`smallest_singular_value`、`condition_number`、`discrete_ambiguity_count` 和 `invariance_negative_tests`。代码必须验证锚定后的雅可比达到声明秩，并实际运行至少一个平移/旋转/尺度/镜像/标签置换负例；若负例仍满足观测且未由锚点或先验排除，结论只能是等价类或多解。不得以残差近零、方程数较多或求解器 `success` 代替可辨识性证据。
