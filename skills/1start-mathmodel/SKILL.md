@@ -29,6 +29,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 - `reports/SOURCE_MANIFEST.md`：题面、附件、资料库和对标论文的来源与处理状态。
 - `reports/QUESTION_COVERAGE.md`：顶层问题、边界条件、情景、指标、图表和验证的覆盖矩阵。
 - `data/data_manifest.json`：数据快照、哈希、单位和允许派生操作。
+- `reproduction_manifest.json`：从官方输入和代码开始的干净重放清单，列出复制源、命令顺序和预期产物。
 - `reports/RESOURCE_BASELINE.md`：仅当题面含计算复杂度、存储、时间、成本、能耗或资源利用率目标时创建；记录可复现基线、候选方案、单位、质量约束和帕累托选择证据。
 
 ## 工作流
@@ -100,6 +101,7 @@ workflow:
 │   ├── ... 
 │   └── utils.py
 ├── results/                     # 2: 结果记录（3coding-visual）
+│   └── results_contract_manifest.json # 正式子问题契约清单，排除辅助审计 JSON
 ├── figures/                     # 2+3: 所有图表（3coding-visual + 4drawio）
 │   ├── *.pdf                    #     数据图 + 非数据图 PDF
 │   ├── *.drawio                 #     非数据图源文件
@@ -163,6 +165,7 @@ workflow:
 8. **输出形态**：写作阶段的最终交付必须包含可编译的 `main.typ` 或 `main.tex` 及 PDF；`paper.md` 只能作为草稿或中间交换格式，不能单独标记为提交就绪。
 9. **资源目标（条件闸门）**：若题面要求低复杂度、低存储、低时间、低成本、低能耗或资源优化，先在 `RESOURCE_BASELINE.md` 固定一个可执行基线（算法/参数/数据切分、资源单位、质量指标和运行命令），再列出全部候选的“质量约束--资源指标”表。候选必须同时满足所有题设质量阈值，并在至少一项同单位资源上相对基线严格改善，才能标记 `resource_passed`。多目标题若存在不可避免的资源冲突，必须明确采用 `pareto_tradeoff`：逐项列出未改善的资源、数值、原因和适用边界；不得把它概括为全维度优化。不能把未运行的渐近式、只满足精度的方案、或只报告平均值而最坏情景失败的方案写成优化完成。若没有可行候选，状态为 `resource_gap`，必须阻断把该优化子问题写为完成。
 10. **引擎状态**：所选 Typst/LaTeX 引擎可用却编译失败、超时或需未完成的交互安装时，验收状态必须是 `engine_failed`。可用其他渲染器做版式预览，但该 PDF 只能标为 `rendered_preview`，不得代替所选入口的“提交就绪”编译产物。
+11. **干净重放**：在隔离临时目录中只复制 `reproduction_manifest.json` 明示的官方输入、代码和静态模板，不复制既有 `results/`、`figures/`、`paper/`、缓存或报告；按清单顺序执行后必须重新产生全部正式契约、论文入口、PDF 和必要模板附件。脚本含旧工作区绝对路径、读取未由前序命令生成的派生文件、把图表写到约定外目录，或只在污染工作区成功，均标记 `reproduction_failed`，不得交付。
 
 阶段之间只允许传递结构化结果，不允许把“错误文本”当作结果摘要。推荐使用如下最小契约字段：
 

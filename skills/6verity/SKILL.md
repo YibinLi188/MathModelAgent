@@ -37,7 +37,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 ### Step 0：结构化结果闸门（先于文本检查）
 
-先扫描 `results/*.json` 和 `data/data_manifest.json`。每个顶层子问题都必须有可解析 JSON、`schema_version=1.1`、`status=success`、数据哈希、样本量、核心指标、产物路径、验证记录和 `solution_evidence`。若任一文件缺失、状态为 `failed`、哈希为空或产物不存在，直接判定 `FAIL`，不得用论文中的自然语言补齐。
+先读取 `results/results_contract_manifest.json`，再按清单扫描正式子问题契约和 `data/data_manifest.json`。每个顶层子问题都必须有可解析 JSON、`schema_version=1.2`、`status=success`、数据哈希、样本量、核心指标、产物路径、验证记录和 `solution_evidence`。若任一文件缺失、状态为 `failed`、哈希为空或产物不存在，直接判定 `FAIL`，不得用论文中的自然语言补齐。
 
 若本 Skill 附带 `scripts/validate_results_contract.py`，先运行：
 
@@ -55,6 +55,8 @@ Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `p
 结果契约还必须声明指标语义：事件概率、成功对象数、节点级指标和系统级指标不可混用。检查吞吐、流量、计数等指标的单位、分子、分母和并发规则；“至少一个对象发生”不能直接作为“成功对象数”。每个核心指标必须有 `metric_semantics`、`independent_delta` 和 `tolerance`，缺失即 `FAIL`。
 
 分别检查可行性、收敛和最优性：`solver_converged=false` 时只允许 `optimality_claim=feasible_only|not_applicable`，并核对摘要、正文和结论没有使用“最优解/全局最优”等越级措辞。`local_converged` 或 `global_proven` 必须有正常终止原因和稳定性证据；`global_proven` 还必须有界、穷举或证明。状态与措辞冲突即 `FAIL`。
+
+同时核对原始求解状态码、`termination_category`、incumbent、目标界、gap 与容差。达到时间/迭代/节点上限却写 `solver_converged=true`，或 gap 为未知/无穷、缺少有限界却写 `global_proven`，均 `FAIL`。存在可行 incumbent 只能证明可行性；正式提交附件若要求已证明最优而当前仅 `feasible_only`，必须拒绝导出或验证其带 `DRAFT_FEASIBLE_ONLY` 标识。
 
 若同题参考结果冲突或模型存在多种物理/统计口径，检查 `comparison_semantics` 及口径敏感性结果。表面/对象模型、分子、分母、权重、采样单位或边界不同的数值被直接计算相对误差、排序或当作正确性证据时，判定 `FAIL`。
 
@@ -90,6 +92,8 @@ Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `p
 
 存在官方结果模板时，检查重新导入后的逐格比对报告。工作表名、固定单元、公式、合并区域或非填写区发生变化，写入范围错列/缩减，或结构化结果与单元格有任一超容差差异，均判定 `FAIL`；“成功导出/可打开”不能代替模板验收。
 
+模板验收还须检查 `submission_export`：小数位、十进制舍入模式、恰好位于半单位的边界输入/期望/实际值和正式导出政策必须齐全。依赖语言默认 `round`、边界测试未执行、实际值与期望值不一致，或低于导出政策仍生成无草稿标识的正式文件，均 `FAIL`。
+
 题目要求新增少量实验时，逐项检查其信息目标与判废准则。全部实验只是无理由均匀铺点、重复已有点却未说明用于纯误差/复验、或候选越出题面与安全可行域时，判定 `FAIL`；若没有任何峰值、边界、交互、模型判别或重复误差证据目标，最多只能 `WARN`，不得写成“最优实验设计”。
 
 检查 `reports/QUESTION_COVERAGE.md`（若入口阶段生成）中的每个顶层问题和 `gap` 状态。存在未覆盖的题面边界、拓扑情景或参数范围时，验收结论最多为 `WARN`；若论文摘要声称已完成全部问题，则判定 `FAIL`。
@@ -97,6 +101,8 @@ Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `p
 若题面含计算、存储、时间、成本、能耗或资源优化目标，检查 `reports/RESOURCE_BASELINE.md` 和结果 JSON：每个优化子问题必须存在可运行基线、统一资源单位、质量约束、候选表、最坏情景资源聚合和严格改善的可复算证据。`resource.comparison.strict_improvements` 至少包含一项同单位严格改善；`pareto_tradeoff` 还必须逐项列出未改善的资源、数值、原因和结论边界。候选仅精度通过、资源只在均值上变好、资源计数遗漏模型/编解码/推理等题面要求部分，或把帕累托取舍写成全维度优化时，判定 `FAIL`；论文不得把该子问题写成完成。没有资源目标的题目跳过本项，并在报告中说明。
 
 若 `paper/` 只有 `paper.md` 而没有选定引擎的 `main.typ`/`main.tex` 和编译 PDF，必须标记为“草稿未提交就绪”，不能写 `PASS`。
+
+正式结果契约必须由 `results/results_contract_manifest.json` 显式列举。验证器只按清单或命令行明确给出的任务检查，不能把输入清单、审计明细、灵敏度原始数据或门禁测试 JSON 当作子问题契约。清单缺失、任务/文件重复、路径越出 `results/`、清单任务名与文件内 `task` 不一致，均判定 `FAIL`；不得用静默跳过未知 JSON 掩盖正式结果缺失。
 
 
 ### Step 1: 运行文本质量门禁
@@ -122,6 +128,25 @@ bash "$SCRIPT_PATH" \
 如果本 skill 被复制到其他目录，使用实际脚本路径。可以先运行 `bash <script> --help` 查看参数。不要把脚本路径、论文目录或文件名写死在验收逻辑中。
 
 脚本只扫描文本，不生成论文，也不编译 PDF。它的 `FAIL` 属于硬错误，必须修复后重跑。
+
+随后运行结构化结果契约验证器；默认从清单读取正式结果文件：
+
+```bash
+python "<本 skill 实际目录>/scripts/validate_results_contract.py" \
+  --results-dir "$PROJECT_ROOT/results" \
+  --project-root "$PROJECT_ROOT"
+```
+
+只有临时迁移诊断才允许显式使用 `--scan-all`。已知顶层任务时也可传 `--expected-tasks ques1,ques2`，但最终交付仍必须保留清单，确保下一次复验不依赖人工记忆。
+
+再运行干净重放验证器：
+
+```bash
+python "<本 skill 实际目录>/scripts/validate_clean_replay.py" \
+  --project-root "$PROJECT_ROOT"
+```
+
+验证器必须在新临时目录中执行，不得先复制旧 `results/`、`figures/`、`paper/`、`generated/`、缓存或报告。`reproduction_manifest.json` 缺失、复制源越界或含生成目录、命令含项目绝对路径、任一命令非零退出、或任一预期产物未重新生成，均判定 `FAIL`。验收报告记录临时运行目录、命令、退出码、总耗时和产物 SHA-256；“在原目录再运行一次”不算干净重放。
 
 ### Step 2: 章节数量和标题顺序
 

@@ -11,7 +11,7 @@
 
 | 字段 | 要求 |
 | --- | --- |
-| `schema_version` | 当前为 `1.1` |
+| `schema_version` | 当前为 `1.2`；从 1.1 迁移时补齐 `termination_category`、incumbent、界、gap 与容差字段 |
 | `status` | 只表示计算流程是否完整执行：成功为 `success`；执行失败为 `failed` 并填写 `error`。不得用它代替求解器收敛或最优性声明 |
 | `task` | 稳定的问题标识，如 `ques1` |
 | `data_hashes` | 输入数据或参数快照的 SHA-256，不能为空 |
@@ -33,13 +33,20 @@
   "feasibility_status": "feasible | infeasible | not_applicable",
   "solver_converged": false,
   "termination_reason": "maximum function evaluations reached",
+  "termination_category": "limit",
+  "incumbent_available": true,
+  "objective_bound": null,
+  "optimality_gap": null,
+  "optimality_tolerance": 0.005,
   "optimality_claim": "global_proven | local_converged | feasible_only | not_applicable",
   "restart_or_budget_checks": 3,
   "stability_evidence": "three budgets produced the same feasible objective within 0.2%"
 }
 ```
 
-`status=success` 只说明计算和产物生成成功。若 `solver_converged=false`，`optimality_claim` 只能为 `feasible_only` 或 `not_applicable`；正文必须写“可行近似解/方案”，不得写“最优解”或暗示全局最优。若声明 `local_converged` 或 `global_proven`，必须同时有 `solver_converged=true`；`global_proven` 还需在 `stability_evidence` 中写明证明、界或穷举依据。
+`termination_category` 只能为 `normal|limit|interrupted|numerical|infeasible|not_applicable`。`status=success` 只说明计算和产物生成成功。达到时间/迭代/节点上限时，即使存在 incumbent，也必须写 `solver_converged=false`、`termination_category=limit` 和 `optimality_claim=feasible_only`；正文只能写“可行近似解/方案”。`global_proven` 必须同时有正常终止、有限的目标界与 gap，且 `optimality_gap <= optimality_tolerance`。无有限界或 gap 为 `null/NaN/Infinity` 时不得声称最优。
+
+题目提供官方 Excel/CSV 提交模板时，结果契约还必须包含 `submission_export`：列出模板、产物、允许导出的最弱求解声明，以及显式的十进制舍入规则。必须用恰好位于半单位处的边界值（如 57.5625 保留三位）验证 tie-breaking；Python `round` 的 half-even 不能静默冒充竞赛常用的 half-up。若当前 `optimality_claim` 低于导出政策，允许生成的只能是带 `DRAFT_FEASIBLE_ONLY` 标识的审计草稿，不得命名为正式提交结果。
 
 当指标存在合理但不唯一的物理/统计口径，或同题高质量参考结果明显冲突时，结果 JSON 还必须包含 `comparison_semantics`：
 

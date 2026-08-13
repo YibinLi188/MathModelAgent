@@ -5,16 +5,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
 
 
-RESERVED = {"raw_results.json", "all_results.json", "run_manifest.json"}
+DEFAULT_MANIFEST = "results_contract_manifest.json"
 VALID_FEASIBILITY = {"feasible", "infeasible", "not_applicable"}
 VALID_OPTIMALITY = {"global_proven", "local_converged", "feasible_only", "not_applicable"}
 VALID_COMBINATION_SCOPE = {"observed_combinations_only", "interpolated_design_space", "extrapolated_candidate_space"}
 VALID_POINT_ROLES = {"feasible_candidate", "supremum_reference", "infeasible_reference"}
+VALID_TERMINATION = {"normal", "limit", "interrupted", "numerical", "infeasible", "not_applicable"}
+CLAIM_LEVEL = {"not_applicable": 0, "feasible_only": 1, "local_converged": 2, "global_proven": 3}
 
 
 def fail(errors: list[str], message: str) -> None:
@@ -118,6 +121,11 @@ def validate_solution_evidence(evidence: Any, errors: list[str], path: Path) -> 
     claim = evidence.get("optimality_claim")
     checks = evidence.get("restart_or_budget_checks")
     stability = evidence.get("stability_evidence")
+    category = evidence.get("termination_category")
+    incumbent = evidence.get("incumbent_available")
+    bound = evidence.get("objective_bound")
+    gap = evidence.get("optimality_gap")
+    tolerance = evidence.get("optimality_tolerance")
     if feasibility not in VALID_FEASIBILITY:
         fail(errors, f"{path.name}: invalid solution_evidence.feasibility_status")
     if not isinstance(converged, bool):
@@ -130,12 +138,74 @@ def validate_solution_evidence(evidence: Any, errors: list[str], path: Path) -> 
         fail(errors, f"{path.name}: solution_evidence.restart_or_budget_checks must be a non-negative integer")
     if not isinstance(stability, str) or not stability.strip():
         fail(errors, f"{path.name}: solution_evidence.stability_evidence must be non-empty")
+    if category not in VALID_TERMINATION:
+        fail(errors, f"{path.name}: invalid solution_evidence.termination_category")
+    if not isinstance(incumbent, bool):
+        fail(errors, f"{path.name}: solution_evidence.incumbent_available must be boolean")
+    for key, value in (("objective_bound", bound), ("optimality_gap", gap), ("optimality_tolerance", tolerance)):
+        if value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value)):
+            fail(errors, f"{path.name}: solution_evidence.{key} must be finite numeric or null")
     if converged is False and claim not in {"feasible_only", "not_applicable"}:
         fail(errors, f"{path.name}: non-converged solver cannot claim {claim!r}")
     if claim in {"local_converged", "global_proven"} and converged is not True:
         fail(errors, f"{path.name}: {claim} requires solver_converged=true")
     if claim == "feasible_only" and feasibility != "feasible":
         fail(errors, f"{path.name}: feasible_only requires feasibility_status=feasible")
+    if category in {"limit", "interrupted", "numerical"} and converged is not False:
+        fail(errors, f"{path.name}: termination_category={category} requires solver_converged=false")
+    if category == "limit" and claim not in {"feasible_only", "not_applicable"}:
+        fail(errors, f"{path.name}: limit termination cannot claim {claim!r}")
+    if claim == "feasible_only" and incumbent is not True:
+        fail(errors, f"{path.name}: feasible_only requires incumbent_available=true")
+    if claim == "global_proven":
+        if category != "normal":
+            fail(errors, f"{path.name}: global_proven requires normal termination")
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in (bound, gap, tolerance)):
+            fail(errors, f"{path.name}: global_proven requires finite bound, gap, and tolerance")
+        elif gap < 0 or tolerance < 0 or gap > tolerance:
+            fail(errors, f"{path.name}: global_proven gap exceeds tolerance")
+
+
+def validate_submission_export(export: Any, evidence: Any, errors: list[str], path: Path) -> None:
+    """Validate official-template rounding and claim-aware export policy."""
+    if not isinstance(export, dict):
+        fail(errors, f"{path.name}: submission_export must be an object")
+        return
+    for key in ("template", "output"):
+        if not isinstance(export.get(key), str) or not export[key].strip():
+            fail(errors, f"{path.name}: submission_export.{key} must be non-empty")
+    decimals = export.get("decimal_places")
+    if not isinstance(decimals, int) or isinstance(decimals, bool) or decimals < 0:
+        fail(errors, f"{path.name}: submission_export.decimal_places must be a non-negative integer")
+    if export.get("rounding_mode") not in {"ROUND_HALF_UP", "ROUND_HALF_EVEN", "ROUND_DOWN", "ROUND_UP"}:
+        fail(errors, f"{path.name}: submission_export.rounding_mode is invalid")
+    boundary = export.get("tie_boundary_test")
+    if not isinstance(boundary, dict):
+        fail(errors, f"{path.name}: submission_export.tie_boundary_test must be an object")
+    else:
+        values = [boundary.get(key) for key in ("input", "expected", "actual")]
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in values):
+            fail(errors, f"{path.name}: tie boundary input/expected/actual must be finite numeric")
+        elif abs(values[1] - values[2]) > 10 ** (-(decimals if isinstance(decimals, int) else 0)) / 10:
+            fail(errors, f"{path.name}: tie boundary actual does not match expected")
+    policy = export.get("export_policy")
+    if not isinstance(policy, dict):
+        fail(errors, f"{path.name}: submission_export.export_policy must be an object")
+        return
+    minimum = policy.get("minimum_optimality_claim")
+    draft = policy.get("draft_feasible_only")
+    if minimum not in CLAIM_LEVEL:
+        fail(errors, f"{path.name}: invalid minimum_optimality_claim")
+        return
+    if not isinstance(draft, bool):
+        fail(errors, f"{path.name}: draft_feasible_only must be boolean")
+        return
+    claim = evidence.get("optimality_claim") if isinstance(evidence, dict) else None
+    if claim in CLAIM_LEVEL and CLAIM_LEVEL[claim] < CLAIM_LEVEL[minimum]:
+        if draft is not True:
+            fail(errors, f"{path.name}: export below policy must be marked DRAFT_FEASIBLE_ONLY")
+        elif "DRAFT_FEASIBLE_ONLY" not in export.get("output", ""):
+            fail(errors, f"{path.name}: draft output filename must contain DRAFT_FEASIBLE_ONLY")
 
 
 def validate_comparison_semantics(semantics: Any, errors: list[str], path: Path) -> None:
@@ -252,8 +322,8 @@ def validate(path: Path, root: Path, errors: list[str], require_resource: bool) 
     if not isinstance(payload, dict):
         fail(errors, f"{path.name}: top level must be an object")
         return
-    if require(payload, "schema_version", errors, path) != "1.1":
-        fail(errors, f"{path.name}: schema_version must be 1.1")
+    if require(payload, "schema_version", errors, path) != "1.2":
+        fail(errors, f"{path.name}: schema_version must be 1.2")
     status = require(payload, "status", errors, path)
     if status != "success":
         fail(errors, f"{path.name}: status must be success (got {status!r})")
@@ -310,6 +380,8 @@ def validate(path: Path, root: Path, errors: list[str], require_resource: bool) 
         fail(errors, f"{path.name}: successful result must have error=null")
     evidence = require(payload, "solution_evidence", errors, path)
     validate_solution_evidence(evidence, errors, path)
+    if "submission_export" in payload:
+        validate_submission_export(payload["submission_export"], evidence, errors, path)
     if "comparison_semantics" in payload:
         validate_comparison_semantics(payload["comparison_semantics"], errors, path)
     if "optimization_domain" in payload:
@@ -323,11 +395,78 @@ def validate(path: Path, root: Path, errors: list[str], require_resource: bool) 
             validate_resource(payload["resource"], errors, path)
 
 
+def load_manifest(path: Path, results_dir: Path, errors: list[str]) -> list[tuple[str, Path]]:
+    """Resolve explicit question contracts without treating audit JSON as contracts."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - report malformed manifests
+        fail(errors, f"{path.name}: invalid JSON ({exc})")
+        return []
+    if not isinstance(payload, dict):
+        fail(errors, f"{path.name}: top level must be an object")
+        return []
+    if payload.get("schema_version") != "1.0":
+        fail(errors, f"{path.name}: schema_version must be 1.0")
+    contracts = payload.get("contracts")
+    if not isinstance(contracts, list) or not contracts:
+        fail(errors, f"{path.name}: contracts must be a non-empty list")
+        return []
+    resolved: list[tuple[str, Path]] = []
+    seen_tasks: set[str] = set()
+    seen_paths: set[Path] = set()
+    for index, item in enumerate(contracts):
+        prefix = f"{path.name}: contracts[{index}]"
+        if not isinstance(item, dict):
+            fail(errors, f"{prefix} must be an object")
+            continue
+        task = item.get("task")
+        relative = item.get("file")
+        if not isinstance(task, str) or not task.strip():
+            fail(errors, f"{prefix}.task must be non-empty")
+            continue
+        if not isinstance(relative, str) or not relative.strip():
+            fail(errors, f"{prefix}.file must be non-empty")
+            continue
+        candidate = (results_dir / relative).resolve()
+        try:
+            candidate.relative_to(results_dir)
+        except ValueError:
+            fail(errors, f"{prefix}.file escapes results directory: {relative}")
+            continue
+        if candidate.suffix.lower() != ".json":
+            fail(errors, f"{prefix}.file must name a JSON file")
+            continue
+        if task in seen_tasks:
+            fail(errors, f"{prefix}.task duplicates {task!r}")
+            continue
+        if candidate in seen_paths:
+            fail(errors, f"{prefix}.file duplicates {relative!r}")
+            continue
+        seen_tasks.add(task)
+        seen_paths.add(candidate)
+        if not candidate.is_file():
+            fail(errors, f"{prefix}.file does not exist: {relative}")
+            continue
+        try:
+            contract = json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 - validate reports the contract later
+            fail(errors, f"{candidate.name}: invalid JSON ({exc})")
+            continue
+        actual_task = contract.get("task") if isinstance(contract, dict) else None
+        if actual_task != task:
+            fail(errors, f"{candidate.name}: task {actual_task!r} does not match manifest {task!r}")
+            continue
+        resolved.append((task, candidate))
+    return resolved
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results-dir", required=True, type=Path)
     parser.add_argument("--project-root", type=Path, default=None)
     parser.add_argument("--expected-tasks", default="", help="comma-separated task ids, e.g. ques1,ques2")
+    parser.add_argument("--manifest", type=Path, default=None, help=f"explicit contract manifest; defaults to results-dir/{DEFAULT_MANIFEST}")
+    parser.add_argument("--scan-all", action="store_true", help="legacy diagnostic: validate every JSON except the contract manifest")
     parser.add_argument("--require-resource", action="store_true", help="require and validate a resource comparison object for every checked task")
     args = parser.parse_args()
     results_dir = args.results_dir.resolve()
@@ -336,9 +475,9 @@ def main() -> int:
     if not results_dir.is_dir():
         print(f"FAIL: results directory does not exist: {results_dir}")
         return 1
-    files = [p for p in sorted(results_dir.glob("*.json")) if p.name not in RESERVED]
     expected = [x.strip() for x in args.expected_tasks.split(",") if x.strip()]
     if expected:
+        files = [p for p in sorted(results_dir.glob("*.json")) if p.name != DEFAULT_MANIFEST]
         by_task = {p.stem: p for p in files}
         for task in expected:
             path = by_task.get(task)
@@ -347,10 +486,20 @@ def main() -> int:
             else:
                 validate(path, root, errors, args.require_resource)
     else:
-        if not files:
-            fail(errors, "no per-question JSON files found")
-        for path in files:
-            validate(path, root, errors, args.require_resource)
+        manifest = (args.manifest or (results_dir / DEFAULT_MANIFEST)).resolve()
+        if manifest.is_file():
+            entries = load_manifest(manifest, results_dir, errors)
+            for _, path in entries:
+                validate(path, root, errors, args.require_resource)
+            expected = [task for task, _ in entries]
+        elif args.scan_all:
+            files = [p for p in sorted(results_dir.glob("*.json")) if p.name != DEFAULT_MANIFEST]
+            if not files:
+                fail(errors, "no JSON files found")
+            for path in files:
+                validate(path, root, errors, args.require_resource)
+        else:
+            fail(errors, f"missing {DEFAULT_MANIFEST}; provide --expected-tasks or use --scan-all explicitly")
     if errors:
         print(f"{len(errors)} contract error(s)")
         return 1
