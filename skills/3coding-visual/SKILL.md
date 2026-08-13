@@ -149,6 +149,8 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 空间覆盖/路径规划模型须保存 `spatial_coverage_audit`，至少含 `domain_geometry`、`candidate_geometry`、`coverage_kernel`、`boundary_clipping`、`overlap_denominator`、`search_grid`、`final_replay_grid`、`uncovered_metric`、`excess_overlap_metric`、`candidate_family` 与 `optimality_scope`。粗筛、插值代理或平均参数产生的指标不得直接进入论文；最终总长度、漏测率、重复覆盖及可行性必须由原始空间数据回放生成。须保留至少一个被完整回放拒绝的候选或等价负例，并验证边界、空交集、全覆盖和网格加密情形；缺少原网格回放或把有限候选族写成全局最优时不得标记 `status=success`。
 
+连续构件运动模型须保存 `continuous_body_geometry_audit`，至少含 `path_parameterization`、`direction_convention`、`body_geometry`、`connector_geometry`、`adjacent_contact_rule`、`collision_kernel`、`path_segments`、`junction_continuity_residuals`、`coarse_scan_interval`、`critical_event_bracket`、`continuous_refinement`、`full_interval_clearance`、`constraint_propagation`、`extremum_scope`、`extremum_tolerance` 与 `coactive_components`。碰撞须对有限尺寸实体而非仅中心点/连接点判断；首次事件须保存临界前后符号相反的间隙或等价证据。对所有构件传播速度/加速度约束，并在全路径连续细化极值；容差内并列极值须保留全部活动构件，不能只保存 `argmax` 的第一个/最后一个索引。仅整数时刻、单一终点或代表构件检查不得标记 `status=success`。路径优化还须保存固定端点/可移动切点等自由度语义，避免把不同可行域的长度直接比较。
+
 内生决策响应模型须保存 `decision_response_audit`，至少含 `decision_variable`、`response_variable`、`assignment_mechanism`、`confounders`、`identification_design`、`identification_assumptions`、`response_semantics`、`decision_bounds`、`boundary_hit_rate`、`response_scenarios` 和 `robust_replay`。若 `identification_design=observational_only`，输出只能标记为关联预测或情景优化，不得标记因果最优。至少运行一组响应系数扰动和一组时间/实体外回测；最优决策大量贴边而未扩大/解释安全域，或仅在训练内报告拟合优度时，不得标记 `status=success`。
 
 边界候选须保存向可行域内部的扰动表。若近似目标形成等价脊/参数带，输出带的范围和可辨识性说明；若约束外候选看似更优，必须保留为负面测试并断言闸门拒绝。优化器返回值经过静默裁剪、四舍五入到边界或只在代理目标上更优时，`optimality_claim` 不得超过 `feasible_only`。
