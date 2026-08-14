@@ -512,10 +512,32 @@ if is_typst:
     image_re = re.compile(r'image\(\s*"([^"]+)"')
 else:
     image_re = re.compile(r'\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}')
+
+latex_graphic_dirs = []
+if is_latex:
+    # LaTeX resolves relative graphics from the compilation working directory
+    # (normally main.tex's directory), and \graphicspath entries extend that
+    # search path even when \includegraphics appears in an input section.
+    latex_graphic_dirs.append(main.parent.resolve())
+    for group in re.findall(r'\\graphicspath\s*\{((?:\{[^}]*\}\s*)+)\}', main_text):
+        for entry in re.findall(r'\{([^}]*)\}', group):
+            latex_graphic_dirs.append((main.parent / entry).resolve())
+    latex_graphic_dirs = unique_paths(latex_graphic_dirs)
+
+def image_exists(source, ref):
+    if not is_latex:
+        return (source.parent / ref).resolve().exists()
+    requested = Path(ref)
+    suffixes = [""] if requested.suffix else ["", ".pdf", ".png", ".jpg", ".jpeg", ".eps"]
+    for directory in latex_graphic_dirs:
+        for suffix in suffixes:
+            if (directory / (ref + suffix)).resolve().exists():
+                return True
+    return False
+
 for path, text in file_texts:
     for ref in image_re.findall(text):
-        target = (path.parent / ref).resolve()
-        if not target.exists():
+        if not image_exists(path, ref):
             fail(f"referenced image does not exist from {rel(path)}: {ref}")
 
 if figures_dir and figures_dir.exists():

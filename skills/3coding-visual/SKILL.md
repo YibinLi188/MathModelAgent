@@ -69,7 +69,7 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.2",
   "status": "success",
   "task": "ques1",
   "data_hashes": ["sha256:..."],
@@ -90,12 +90,38 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
     "independent_recompute": true,
     "constraints_passed": true
   },
+  "solution_evidence": {
+    "feasibility_status": "feasible",
+    "solver_converged": false,
+    "termination_reason": "maximum function evaluations reached",
+    "optimality_claim": "feasible_only",
+    "restart_or_budget_checks": 3,
+    "stability_evidence": "objective and constraint margins stable across three budgets"
+  },
   "limitations": [],
   "error": null
 }
 ```
 
-`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+同时创建 `results/results_contract_manifest.json`，显式列出正式子问题契约；输入清单、审计明细、灵敏度原始表和门禁测试等辅助 JSON 不得混入清单：
+
+```json
+{
+  "schema_version": "1.0",
+  "contracts": [
+    {"task": "ques1", "file": "ques1.json"},
+    {"task": "ques2", "file": "ques2.json"}
+  ]
+}
+```
+
+清单中的 `task` 必须与目标 JSON 的 `task` 完全一致，文件路径必须位于 `results/` 内，任务和文件均不得重复。新增或删除顶层子问题时同步修改清单；禁止让验证器通过扫描目录猜测哪些 JSON 是正式结果。
+
+`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。它只代表计算流程成功，不代表求解器收敛或最优。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+
+每个 JSON 必须写 `solution_evidence`。优化器达到最大迭代/评估次数、数值异常或人工中止时，`solver_converged=false` 且 `optimality_claim=feasible_only`；即使硬约束全部通过也不得写成 `local_converged`。声明局部或全局最优时必须保存终止原因、最优性指标以及多初值/多预算证据；全局最优还需保存界、穷举或证明依据。
+
+不要直接把求解库的 `success` 布尔值映射成业务成功。结构化保存原始状态码、消息、`termination_category`、是否存在 incumbent、目标值、有限界、gap 和 gap 容差；达到限制而有 incumbent 时，计算流程可为 `status=success`，但 `solver_converged=false`、`optimality_claim=feasible_only`。`global_proven` 仅在正常终止且有限 gap 不超过声明容差时允许。gap 为 `NaN/Infinity/null` 或缺少界时必须硬降级。
 
 每个核心指标还必须有可审计的语义声明。推荐在结果 JSON 增加：
 
@@ -120,6 +146,44 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 题面含资源优化目标时，每个相关 JSON 必须补充 `resource` 对象，并遵循 `../_references/result_contract.md`。资源计数必须覆盖模型参数、预处理、压缩/解压、推理或求解中题面要求计入的部分；真实运行时间应记录机器、重复次数和统计量。候选不满足全部质量约束时不得拿它的资源数参与“最优”比较。只有同单位的严格改善可写入 `strict_improvements`。存储与编码/解码天然冲突时，用 `pareto_tradeoff` 逐项记录代价；没有严格改善、质量约束为假，或把未解释代价藏在汇总指标中，均标记为 `resource_gap`，不得交给写作阶段作为优化完成。
 
 明确区分 `event_probability`（例如至少一个节点发送）、`successful_object_count`（例如成功数据包数）和 `throughput`。并发成功时不能把一个非空事件自动当成一个成功对象；必须保存单对象、双对象及期望成功对象数，或给出等价的逐对象计数证明。仿真统计也必须使用同一计数口径。
+
+若分析阶段给出了“可比口径矩阵”，为每个主口径保存 `comparison_semantics`，并至少运行两个合理口径或一个口径加理论上/下界。图表和结果表必须把不同口径分列，不得把表面模型、分母或采样单位不同的参考结果直接计算相对误差。
+
+执行优化前，将 `optimization_domain` 写入结果 JSON：变量名、类型、上下界、开/闭边界、可行组合来源、插值/外推策略和安全约束必须可机读。开边界用 `exclusive=true` 表示，不得为了方便求解器而改成闭边界；若实现采用网格近似，记录网格步长、最优点到边界的距离和至少两档更细网格的稳定性。代理模型按实体、组合、站点、患者或时间块分组切分；训练/验证/测试的分组键不得重叠，并输出重叠计数为0。
+
+抽样决策实现须把 `sampling_decision_audit` 写入结构化结果：至少包含假设方向、$p_0$、效应点/先验或损失、alpha、beta/功效、样本量、整数接受/拒绝阈值、未决区和停止规则。对离散分布直接保存判定边界处及相邻点的精确尾概率，并生成操作特性数据；若使用正态或渐近近似，必须与精确二项/超几何 oracle 比较误差。缺少效应点或功效时，输出 `identifiability=conditional_design`，不得把搜索到的某个 $n$ 标成题面唯一最小值。
+
+循环生产或返工代码须保存 `rework_state_audit`：状态枚举/编码、潜在质量继承规则、每类转移的概率与即时成本、收入触发、吸收状态、不可行策略数和终止性指标。解析模型至少检查 $(I-Q)V=c$ 残差并拒绝奇异/非吸收策略；仿真模型按策略和压力情景保存完成数、最大轮数命中数、平均循环数及共同随机数/种子。拆解后旧件质量不得被静默重抽样，`-inf`、未完成轨迹或最大轮数截断不得参与“最优”排序。
+
+轮作/排班/多季资源代码须保存 `rotation_land_audit`：资源与子季索引、按真实日历排序的相邻边、历史边界状态、模式互斥、滚动窗口起止、混合子资源的状态继承口径，以及集中度/最小规模是硬约束、条件阈值还是事后审计。独立验证器必须从原始决策变量重算每期资源守恒、相邻禁配和每个滚动窗口覆盖；不能复用求解器约束对象充当验证。若模型可线性化，保存求解状态、上下界与 MIP gap；启发式结果须保存种群/候选域、可行率、修复规则、多种子分布和 `optimality_claim=candidate_only`。
+
+对结构零生成布尔观测掩码，并在结果 JSON 保存 `structural_zero_semantics`、`observed_count` 与 `structural_zero_count`。任何由均值、分位数、损耗率或概率进入目标函数/约束的统计量，必须断言其分母只含有效观测；至少用一个“把结构零误当观测”的反例测试证明闸门会报警。
+
+成分/份额数据须保存 `compositional_audit`：原始行和、有效区间、剔除行、闭合规则、零语义、零替换或检测限、log-ratio 变换、分组键和替换敏感性。若输出亚类，另存 `cluster_stability`，至少含候选 $k$、实体级重采样方案、ARI/共聚类分布、成员清单及 `claim_level=stable|exploratory`。若输出类别网络差异，保存 `network_difference_audit`，并断言检验矩阵、绘图矩阵、预处理和统计量哈希/数值一致；至少构造一次“检验 Pearson 矩阵却展示偏相关矩阵”的反例并拒绝。
+
+跨期优化须保存 `state_transition` 及逐期 `state_trace`，至少含期号、期初状态、流入、流出、期末状态和约束裕度。独立复算不得只比目标值；要从原始决策变量重放全部状态转移，并逐期检查容量、库存、守恒和终端约束。
+
+物理动力学实现须在结果 JSON 保存 `coordinate_convention`、`equilibrium_definition`、`component_inertia_audit` 与 `physical_residuals`。组合刚体的惯量审计至少列构件、质量分配、质心、参考轴、自身惯量和平行轴项；代码应检查各项非负且总质量一致。若题面允许多种几何解释，运行主口径与至少一个替代口径，保存状态量和目标值敏感性，禁止挑选最接近参考答案的口径后删除其余结果。
+
+线性受迫振动应尽可能同时生成频域和时域稳态结果，并保存关键幅值/平均功率差；非线性或时变系统至少保存全程功--能平衡残差。耗散元件必须断言瞬时耗散功率不为负。使用线性化、谐波平衡、代理或等效阻尼搜索时，候选必须再送入原微分方程和原目标函数；结果 JSON 同时保存近似值、原方程值和差异。
+
+几何光学/辐射/视线模型须保存 `ray_geometry_audit`，至少含 `coordinate_convention`、`incident_direction_semantics`、`reflection_residual_max`、`source_angular_model`、`emitter_sampling`、`occlusion_intersection`、`receiver_geometry`、`receiver_intersection`、`efficiency_denominators` 和 `grid_refinement`。有限光源或接收面不得被静默退化为中心光线/点接收器；使用代理效率搜索时，保存代理值和原光线回放值，最终功率与可行性只能取原光线回放。网格加密须同时改变发射面和光源角采样，报告核心指标最大相对变化；缺少几何边界例或反射定律残差时不得标记 `status=success`。
+
+空间覆盖/路径规划模型须保存 `spatial_coverage_audit`，至少含 `domain_geometry`、`candidate_geometry`、`coverage_kernel`、`boundary_clipping`、`overlap_denominator`、`search_grid`、`final_replay_grid`、`uncovered_metric`、`excess_overlap_metric`、`candidate_family` 与 `optimality_scope`。粗筛、插值代理或平均参数产生的指标不得直接进入论文；最终总长度、漏测率、重复覆盖及可行性必须由原始空间数据回放生成。须保留至少一个被完整回放拒绝的候选或等价负例，并验证边界、空交集、全覆盖和网格加密情形；缺少原网格回放或把有限候选族写成全局最优时不得标记 `status=success`。
+
+连续构件运动模型须保存 `continuous_body_geometry_audit`，至少含 `path_parameterization`、`direction_convention`、`body_geometry`、`connector_geometry`、`adjacent_contact_rule`、`collision_kernel`、`path_segments`、`junction_continuity_residuals`、`coarse_scan_interval`、`critical_event_bracket`、`continuous_refinement`、`full_interval_clearance`、`constraint_propagation`、`extremum_scope`、`extremum_tolerance` 与 `coactive_components`。碰撞须对有限尺寸实体而非仅中心点/连接点判断；首次事件须保存临界前后符号相反的间隙或等价证据。对所有构件传播速度/加速度约束，并在全路径连续细化极值；容差内并列极值须保留全部活动构件，不能只保存 `argmax` 的第一个/最后一个索引。仅整数时刻、单一终点或代表构件检查不得标记 `status=success`。路径优化还须保存固定端点/可移动切点等自由度语义，避免把不同可行域的长度直接比较。
+
+内生决策响应模型须保存 `decision_response_audit`，至少含 `decision_variable`、`response_variable`、`assignment_mechanism`、`confounders`、`identification_design`、`identification_assumptions`、`response_semantics`、`decision_bounds`、`boundary_hit_rate`、`response_scenarios` 和 `robust_replay`。若 `identification_design=observational_only`，输出只能标记为关联预测或情景优化，不得标记因果最优。至少运行一组响应系数扰动和一组时间/实体外回测；最优决策大量贴边而未扩大/解释安全域，或仅在训练内报告拟合优度时，不得标记 `status=success`。
+
+边界候选须保存向可行域内部的扰动表。若近似目标形成等价脊/参数带，输出带的范围和可辨识性说明；若约束外候选看似更优，必须保留为负面测试并断言闸门拒绝。优化器返回值经过静默裁剪、四舍五入到边界或只在代理目标上更优时，`optimality_claim` 不得超过 `feasible_only`。
+
+逆问题、定位、反演、编队和标定结果须在每个相关 JSON 保存 `identifiability_audit`，至少包含 `unknown_dimension`、`independent_observation_dimension`、`gauge_transformations`、`anchors_or_priors`、`jacobian_rank`、`smallest_singular_value`、`condition_number`、`discrete_ambiguity_count` 和 `invariance_negative_tests`。代码必须验证锚定后的雅可比达到声明秩，并实际运行至少一个平移/旋转/尺度/镜像/标签置换负例；若负例仍满足观测且未由锚点或先验排除，结论只能是等价类或多解。不得以残差近零、方程数较多或求解器 `success` 代替可辨识性证据。
+
+声称多轮迭代调整或控制收敛时，须保存 `iteration_history`，逐轮记录选择集合、目标/残差、最大状态更新、约束裕度和终止原因；至少运行两个不同初值或扰动规模。生成一张真实迭代曲线或逐轮表，并将其列入 `artifacts`。只保存初态与终态时不得写“经多轮收敛”，只能写“联合批处理回放可行”。
+
+题目提供 Excel/CSV 结果模板时，最终产物必须由保留模板结构和样式的表格引擎写入。写后重新导入，对每个可写区域逐格比对结构化结果；同时检查工作表名、固定说明、公式、合并区域和非填写单元未变化。范围收缩、错列、四舍五入差异或模板公式被覆盖均为失败，不能只凭“文件能打开”放行。
+
+模板写回必须使用显式十进制舍入（例如 `Decimal.quantize(..., ROUND_HALF_UP)`），并在 `submission_export` 中记录小数位数、tie-breaking、边界输入/期望/实际值以及导出政策。不得依赖语言默认 `round`；至少测试一个恰好为半单位的值。若当前最优性声明低于正式导出要求，只能生成带 `DRAFT_FEASIBLE_ONLY` 标识的审计草稿，禁止输出看似正式的提交文件名。
 
 ### Step 3.2：数据和时间序列闸门
 
@@ -155,4 +219,6 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 ### Step 5：交接阻断
 
-代码阶段结束前，逐个检查 `results/*.json`。任何子问题缺少结果文件、数据哈希、样本量、验证记录或图表路径时，必须阻断写作阶段，并在 `reports/RESULTS_REPORT.md` 中给出可操作的修复项。题面有资源目标时，缺少可运行基线、资源单位、最坏情景资源汇总或严格改善证据同样必须阻断写作阶段。写作手只能读取通过闸门的结构化结果，不能从自然语言错误日志猜测数值。
+代码阶段结束前，按 `results/results_contract_manifest.json` 逐个检查正式子问题契约。任何清单项缺少结果文件、数据哈希、样本量、验证记录或图表路径，或清单与题目顶层问题不一致时，必须阻断写作阶段，并在 `reports/RESULTS_REPORT.md` 中给出可操作的修复项。辅助 JSON 只按其自身审计用途检查，不得冒充子问题契约，也不得因目录全量扫描而产生假失败。题面有资源目标时，缺少可运行基线、资源单位、最坏情景资源汇总或严格改善证据同样必须阻断写作阶段。写作手只能读取通过闸门的结构化结果，不能从自然语言错误日志猜测数值。
+
+写作前还必须生成并实际执行 `reproduction_manifest.json`。清单只允许复制官方输入、代码、静态模板和必要字体/样式；不得把已有 `results/`、`figures/`、`paper/`、`generated/`、缓存或报告列为重放输入。每条命令使用相对工作目录且按序执行，前一命令生成的派生文件才可被后一命令读取。清单的 `expected_outputs` 至少覆盖正式契约清单中的全部 JSON 和所有数据图；若脚本写入约定外目录或依赖旧绝对路径，标记 `reproduction_failed` 并阻断写作。
