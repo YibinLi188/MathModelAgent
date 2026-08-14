@@ -17,6 +17,7 @@ from app.core.llm.llm_factory import LLMFactory
 from app.core.quality_gates import (
     QualityGateError,
     validate_coder_result,
+    validate_competition_paper_text,
     validate_modeler_result,
     validate_writer_result,
 )
@@ -229,7 +230,7 @@ class MathModelWorkFlow(WorkFlow):
                 available_images=coder_response.created_images,
                 sub_title=key,
             )
-            validate_writer_result(writer_response)
+            validate_writer_result(writer_response, section_name=key)
 
             await redis_manager.publish_message(
                 self.task_id,
@@ -257,10 +258,13 @@ class MathModelWorkFlow(WorkFlow):
             )
 
             writer_response = await writer_agent.run(prompt=value, sub_title=key)
-            validate_writer_result(writer_response)
+            validate_writer_result(writer_response, section_name=key)
 
             user_output.set_res(key, writer_response)
 
         logger.info(user_output.get_res())
 
+        validate_competition_paper_text(
+            user_output.get_result_to_save(), section_name="assembled_paper"
+        )
         user_output.save_result()
