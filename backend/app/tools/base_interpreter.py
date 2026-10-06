@@ -2,6 +2,7 @@
 
 import abc
 import re
+from pathlib import Path
 from app.tools.notebook_serializer import NotebookSerializer
 from app.services.redis_manager import redis_manager
 from app.utils.log_util import logger
@@ -72,6 +73,21 @@ class BaseCodeInterpreter(abc.ABC):
         """向指定section添加文本内容"""
         self.add_section(section)
         self.section_output[section]["content"].append(text)
+
+    @staticmethod
+    def prefer_vector_images(paths: list[str] | set[str]) -> list[str]:
+        """Keep one publication asset per stem, preferring vector formats."""
+        priority = {".pdf": 0, ".svg": 1, ".png": 2, ".jpg": 3, ".jpeg": 4}
+        selected: dict[str, str] = {}
+        for path in sorted(paths):
+            suffix = Path(path).suffix.lower()
+            stem = str(Path(path).with_suffix("")).lower()
+            current = selected.get(stem)
+            if current is None or priority.get(suffix, 99) < priority.get(
+                Path(current).suffix.lower(), 99
+            ):
+                selected[stem] = path
+        return sorted(selected.values())
 
     def get_code_output(self, section: str) -> str:
         """获取指定section的代码输出"""

@@ -1,5 +1,7 @@
 """工作流程定义模块，管理建模任务的求解和写作流程。"""
 
+import json
+
 from app.models.user_output import UserOutput
 from app.tools.base_interpreter import BaseCodeInterpreter
 from app.core.agents.modeler_agent import ModelerToCoder
@@ -7,9 +9,14 @@ from app.core.agents.modeler_agent import ModelerToCoder
 
 class Flows:
     """管理数学建模任务的求解流程和写作流程。"""
-    def __init__(self, questions: dict[str, str | int]):
+    def __init__(
+        self,
+        questions: dict[str, str | int],
+        authoritative_source_text: str | None = None,
+    ):
         self.flows: dict[str, dict] = {}
         self.questions: dict[str, str | int] = questions
+        self.authoritative_source_text = authoritative_source_text
 
     def set_flows(self, ques_count: int):
         """根据问题数量设置流程节点。
@@ -49,24 +56,33 @@ class Flows:
             if key.startswith("ques") and key != "ques_count"
         }
         solutions = modeler_response.questions_solution
+        coordinator_outline = json.dumps(questions, ensure_ascii=False)
+        source_questions = self.authoritative_source_text or coordinator_outline
         ques_flow = {
             key: {
+                "source_text": source_questions,
                 "coder_prompt": f"""
-                        参考建模手给出的解决方案{solutions.get(key, "")}
-                        完成如下问题{value}
+                        冻结的用户原始题面（唯一事实来源）{source_questions}
+                        Coordinator 子问题索引（只用于定位，删减或冲突时不得覆盖原始题面）{value}
+                        建模手候选方案（必须按题面复核）{solutions.get(key, "")}
+                        完成该问题；先输出来源参数审计，再求解和验证
                     """,
             }
             for key, value in questions_quesx.items()
         }
         flows = {
             "eda": {
+                "source_text": source_questions,
                 "coder_prompt": f"""
-                        参考建模手给出的解决方案{solutions.get("eda", "对数据进行探索性分析")}
-                        对当前目录下数据进行EDA分析(数据清洗,可视化),清洗后的数据保存当前目录下,**不需要复杂的模型**
+                        冻结的用户原始题面（唯一事实来源）{source_questions}
+                        Coordinator 结构化索引（只用于定位，删减或冲突时不得覆盖原始题面）{coordinator_outline}
+                        建模手候选方案（必须按题面复核）{solutions.get("eda", "对数据进行探索性分析")}
+                        对当前目录下输入做与题型匹配的审计；先输出来源参数账本，**不需要复杂的模型**
                     """,
             },
             **ques_flow,
             "sensitivity_analysis": {
+                "source_text": source_questions,
                 "coder_prompt": f"""
                         参考建模手给出的解决方案{solutions.get("sensitivity_analysis", "对模型进行灵敏度分析")}
                         完成敏感性分析

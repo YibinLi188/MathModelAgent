@@ -3,25 +3,29 @@
 %  全国大学生数学建模竞赛（CUMCM）LaTeX 模板
 %  对应 Typst 模板 zh/cumcm/main.typ 的全部功能。
 %
-%  字体依赖（正文宋体 / 标题黑体 / 强调楷体）：
-%    - 规范字体：SimSun（宋体）、SimHei（黑体）、KaiTi（楷体）。
-%    - CUMCM 常用 Windows 环境，因此本模板默认使用 ctex 的 windows 字体集；
-%      不执行 Times New Roman/Menlo 等可选字体探测，避免缺失字体时停滞。
-%    - macOS/Linux 使用者应在复制模板后显式改为 fontset=mac/fandol，并先做一次
-%      最小编译验证；不要在正式论文首次编译时自动猜测平台。
-%  编译方式：xelatex main.tex （需运行两遍以生成目录）
+%  字体：Windows 选 SimSun/SimHei，Docker/Linux 选 Noto CJK。
+%  编译方式：xelatex main.tex（运行两遍解决交叉引用）。
 % =============================================================================
-\documentclass[fontset=windows, 12pt, a4paper]{ctexart}
+\documentclass[fontset=none, 12pt, a4paper]{ctexart}
 
 % ---------- 页面：A4，上下左右 2.5cm ----------
 \usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm]{geometry}
+\usepackage{xcolor}
 
 % ---------- 数学 ----------
 \usepackage{amsmath}
 
 % ---------- 字体（fontspec + ctex，xelatex 编译） ----------
-% 中文宋体/黑体/楷体由 ctex 的 fontset=windows 设置，
-% 并自动定义 \songti / \heiti / \kaishu 等字体命令。
+% Windows 使用常见宋/黑体；Docker/Linux 使用 Noto CJK，避免自动猜测后挂起。
+\IfFontExistsTF{SimSun}{%
+  \setCJKmainfont{SimSun}
+  \setCJKsansfont{SimHei}
+  \newCJKfontfamily\paperheadingfont{SimHei}
+}{%
+  \setCJKmainfont{Noto Serif CJK SC}
+  \setCJKsansfont{Noto Sans CJK SC}
+  \newCJKfontfamily\paperheadingfont{Noto Sans CJK SC}
+}
 
 % ---------- 正文：12.05pt，首行缩进 2em，两端对齐，行距 0.72em ----------
 % 12pt 字号近似 12.05pt；0.72em 行距 => 行高 = 1.72 * 字号，\linespread 因子 ≈ 1.43
@@ -38,31 +42,36 @@
 
 % ---------- 标题格式（titlesec 配置） ----------
 \usepackage{titlesec}
+\usepackage{etoolbox}
 \titleformat{\section}
-  {\centering\fontsize{17.3pt}{20.8pt}\heiti\bfseries}
+  {\centering\color{black}\fontsize{17.3pt}{20.8pt}\paperheadingfont\bfseries}
   {\chinese{section}、}{1em}{}
 \titleformat{\subsection}
-  {\fontsize{14.45pt}{17.4pt}\heiti\bfseries}
+  {\color{black}\fontsize{14.45pt}{17.4pt}\paperheadingfont\bfseries}
   {\arabic{section}.\arabic{subsection}}{1em}{}
 \titleformat{\subsubsection}
-  {\fontsize{12.05pt}{14.5pt}\heiti\bfseries}
+  {\color{black}\fontsize{12.05pt}{14.5pt}\paperheadingfont\bfseries}
   {\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}{1em}{}
 \titlespacing{\section}       {0pt}{1.25em}{0.82em}
 \titlespacing{\subsection}    {0pt}{1.15em}{0.55em}
 \titlespacing{\subsubsection} {0pt}{1.15em}{0.55em}
-
-% ---------- 目录（tocloft 点线引导） ----------
-\usepackage{tocloft}
-\renewcommand{\cftsecfont}{\heiti\bfseries}
-\renewcommand{\cftsecpagefont}{\heiti\bfseries}
-\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}}
-\renewcommand{\cftsubsubsecleader}{\cftdotfill{\cftdotsep}}
+\newcommand{\paperneedlines}[1]{%
+  \par\begingroup
+  \dimen0=\pagegoal\advance\dimen0 by -\pagetotal
+  \dimen2=#1\baselineskip
+  \ifdim\dimen0<\dimen2\pagebreak[4]\fi
+  \endgroup
+}
+\pretocmd{\section}{\paperneedlines{8}}{}{}
+\pretocmd{\subsection}{\paperneedlines{5}}{}{}
+\pretocmd{\subsubsection}{\paperneedlines{4}}{}{}
 
 % ---------- 表格与代码 ----------
 \usepackage{booktabs}
 \usepackage{array}
-\usepackage{xcolor}
+\usepackage{longtable,tabularx}
+\usepackage{graphicx,float}
+\usepackage[hidelinks]{hyperref}
 \usepackage{listings}
 \lstset{
   basicstyle=\ttfamily\small,
@@ -83,33 +92,18 @@
 % ---------- 自定义命令（对应 Typst 函数） ----------
 % \papertitle{标题}：居中 17.3pt 加粗标题
 \newcommand{\papertitle}[1]{%
-  \thispagestyle{empty}%
   \begin{center}
-    {\fontsize{17.3pt}{22pt}\bfseries #1}
+    {\color{black}\fontsize{17.3pt}{22pt}\paperheadingfont\bfseries #1}
   \end{center}
   \vspace{1em}
 }
-% \abstractcn{摘要正文}{关键词}：居中“摘要”标题（14pt 加粗）+ 正文 + “关键字：”加粗 + 关键词 + 换页
+% \abstractcn{摘要正文}{关键词}：摘要后直接进入正文，不制造独立空白页。
 \newcommand{\abstractcn}[2]{%
-  \thispagestyle{empty}%
-  \begin{center}{\fontsize{14pt}{17pt}\bfseries 摘要}\end{center}
+  \begin{center}{\color{black}\fontsize{14pt}{17pt}\paperheadingfont\bfseries 摘要}\end{center}
   #1\par
   \vspace{1em}
-  {\heiti\bfseries 关键字：}#2\par
-  \newpage
+  {\paperheadingfont\bfseries 关键字：}#2\par
 }
-% \tocpage：目录页，标题“目录”居中 17.3pt 黑体加粗，点线引导
-\makeatletter
-\newcommand{\tocpage}{%
-  \setcounter{page}{1}%
-  \begin{center}
-    {\fontsize{17.3pt}{20.8pt}\heiti\bfseries 目录}
-  \end{center}
-  \vspace{0.5em}
-  \@starttoc{toc}%
-  \newpage
-}
-\makeatother
 % \referencescn：参考文献节，标题“参考文献”（不带编号但进目录）
 \newcommand{\referencescn}{%
   \addcontentsline{toc}{section}{参考文献}%
@@ -125,7 +119,7 @@
 % 调用示例：\threelinetable{表 1 示例}{ccc}{A & B & C}{1 & 2 & 3 \\ 4 & 5 & 6}
 \newcommand{\threelinetable}[4]{%
   \begin{center}
-    {\fontsize{10.5pt}{12.6pt}\heiti\bfseries #1}\par
+    {\fontsize{10.5pt}{12.6pt}\paperheadingfont\bfseries #1}\par
     \vspace{0.6em}
     \begin{tabular}{#2}
       \toprule
@@ -149,9 +143,6 @@
   关键词1 \quad 关键词2 \quad 关键词3%
 }
 
-% 目录页（页码从 1 开始）
-\tocpage
-
 \input{sections/1_restatement}
 \input{sections/2_analysis}
 \input{sections/3_assumptions}
@@ -159,12 +150,11 @@
 \input{sections/5_problem1}
 \input{sections/6_problem2}
 \input{sections/7_problem3}
+% 题面超过三问时按相同格式继续添加 sections/8_problem4 等输入，不固定问数。
 \input{sections/8_sensitivity}
 \input{sections/9_evaluation}
 
-\newpage
 \referencescn
-\newpage
 \appendixcn
 
 \end{document}

@@ -31,6 +31,11 @@ class LocalCodeInterpreter(BaseCodeInterpreter):
         # 本地内核一般不需异步上传文件，直接切换目录即可
         # 初始化 Jupyter 内核管理器和客户端
         logger.info("初始化本地内核")
+        self.last_created_images = {
+            file
+            for file in os.listdir(self.work_dir)
+            if file.lower().endswith((".png", ".jpg", ".jpeg", ".pdf", ".svg"))
+        }
         # 设置 UTF-8 编码环境，避免 Windows 中文环境下 GBK 编码导致的乱码问题
         kernel_env = os.environ.copy()
         kernel_env["PYTHONIOENCODING"] = "utf-8"
@@ -211,7 +216,7 @@ class LocalCodeInterpreter(BaseCodeInterpreter):
         current_images = set()
         files = os.listdir(self.work_dir)
         for file in files:
-            if file.endswith((".png", ".jpg", ".jpeg")):
+            if file.lower().endswith((".png", ".jpg", ".jpeg", ".pdf", ".svg")):
                 current_images.add(file)
 
         # 计算新增的图片
@@ -221,7 +226,7 @@ class LocalCodeInterpreter(BaseCodeInterpreter):
         self.last_created_images = current_images
 
         logger.info(f"新创建的图片列表: {new_images}")
-        return list(new_images)  # 最后转换为list返回
+        return self.prefer_vector_images(new_images)
 
     async def cleanup(self):
         # 关闭内核

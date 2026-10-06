@@ -311,13 +311,16 @@ class E2BCodeInterpreter(BaseCodeInterpreter):
         try:
             files = await self.sbx.files.list("./")
             for file in files:
-                if file.path.endswith(".png") or file.path.endswith(".jpg"):
+                if file.path.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".pdf", ".svg")
+                ):
                     self.add_section(section)
                     self.section_output[section]["images"].append(file.name)
 
             self.created_images = list(
                 set(self.section_output[section]["images"]) - set(self.created_images)
             )
+            self.created_images = self.prefer_vector_images(self.created_images)
             logger.info(f"{section}-获取创建的图片列表: {self.created_images}")
             return self.created_images
         except Exception as e:

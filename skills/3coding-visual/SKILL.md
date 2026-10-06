@@ -117,7 +117,7 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 清单中的 `task` 必须与目标 JSON 的 `task` 完全一致，文件路径必须位于 `results/` 内，任务和文件均不得重复。新增或删除顶层子问题时同步修改清单；禁止让验证器通过扫描目录猜测哪些 JSON 是正式结果。
 
-`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。它只代表计算流程成功，不代表求解器收敛或最优。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
+`status=success` 的前提是代码至少成功执行一次、结果 JSON 可解析、声明的产物存在、约束检查通过，并完成一次独立重算或等价的结果复核。它只代表计算流程成功，不代表求解器收敛或最优。任何非空 `blocked*` 字段都表示仍有未解决前置事实，不得同时写 `status=success` 或 `validation.passed=true`。失败时使用 `status=failed` 并填写 `error`；失败结果不得交给 `5writing`。
 
 每个 JSON 必须写 `solution_evidence`。优化器达到最大迭代/评估次数、数值异常或人工中止时，`solver_converged=false` 且 `optimality_claim=feasible_only`；即使硬约束全部通过也不得写成 `local_converged`。声明局部或全局最优时必须保存终止原因、最优性指标以及多初值/多预算证据；全局最优还需保存界、穷举或证明依据。
 
@@ -171,7 +171,23 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 
 空间覆盖/路径规划模型须保存 `spatial_coverage_audit`，至少含 `domain_geometry`、`candidate_geometry`、`coverage_kernel`、`boundary_clipping`、`overlap_denominator`、`search_grid`、`final_replay_grid`、`uncovered_metric`、`excess_overlap_metric`、`candidate_family` 与 `optimality_scope`。粗筛、插值代理或平均参数产生的指标不得直接进入论文；最终总长度、漏测率、重复覆盖及可行性必须由原始空间数据回放生成。须保留至少一个被完整回放拒绝的候选或等价负例，并验证边界、空交集、全覆盖和网格加密情形；缺少原网格回放或把有限候选族写成全局最优时不得标记 `status=success`。
 
-连续构件运动模型须保存 `continuous_body_geometry_audit`，至少含 `path_parameterization`、`direction_convention`、`body_geometry`、`connector_geometry`、`adjacent_contact_rule`、`collision_kernel`、`path_segments`、`junction_continuity_residuals`、`coarse_scan_interval`、`critical_event_bracket`、`continuous_refinement`、`full_interval_clearance`、`constraint_propagation`、`extremum_scope`、`extremum_tolerance` 与 `coactive_components`。碰撞须对有限尺寸实体而非仅中心点/连接点判断；首次事件须保存临界前后符号相反的间隙或等价证据。对所有构件传播速度/加速度约束，并在全路径连续细化极值；容差内并列极值须保留全部活动构件，不能只保存 `argmax` 的第一个/最后一个索引。仅整数时刻、单一终点或代表构件检查不得标记 `status=success`。路径优化还须保存固定端点/可移动切点等自由度语义，避免把不同可行域的长度直接比较。
+连续构件运动模型须保存 `continuous_body_geometry_audit`，至少含 `path_parameterization`、`direction_convention`、`body_geometry`、`connector_geometry`、`adjacent_contact_rule`、`collision_kernel`、`path_segments`、`junction_continuity_residuals`、`coarse_scan_interval`、`critical_event_bracket`、`continuous_refinement`、`full_interval_clearance`、`constraint_propagation`、`extremum_scope`、`extremum_tolerance` 与 `coactive_components`。碰撞须对有限尺寸实体而非仅中心点/连接点判断；中心距或包围圆只可粗筛候选对，最终须以包含真实长度、宽度和朝向的实体轮廓（如有向矩形分离轴）精确判定。首次事件须保存临界前后符号相反的间隙或等价证据。对所有构件传播速度/加速度约束，并在全路径连续细化极值；容差内并列极值须保留全部活动构件，不能只保存 `argmax` 的第一个/最后一个索引。仅整数时刻、单一终点或代表构件检查不得标记 `status=success`。路径优化还须保存固定端点/可移动切点等自由度语义，避免把不同可行域的长度直接比较。
+
+连续串联构件沿单调径向曲线运动时，先由路径参数化核对头部运动方向，再确定后续节点的参数序关系；例如 `r=cθ(c>0)` 向中心盘入时头部 `θ` 递减，而位于外侧的后续节点 `θ` 必须逐点增大。任何求根无解、优化无可行解或执行警告都必须阻断成功状态，不得以缩半、置零、上一时刻值或其他回退数值继续计算。
+
+含多根的距离方程须同时满足空间序关系与时间连续性：每个时刻从上一时刻的根连续延拓，不能独立扫描后取首个符号变化区间。括界须从当前参数用局部增量向允许方向扩张并锁定最近的符号变化，禁止反复乘大绝对参数上界跨过多个周期根。逐时输出必须复核相邻时刻位移与速度积分相容；即使每一列的构件弦长残差为零，只要跨列出现分支跳变也不得标记 `status=success`。
+
+对 `r=p\theta/(2\pi)` 的向内盘入刚性链，龙头参数随时间减小，但位于其后的串联节点在外侧，因此链上空间顺序必须满足 `\theta_{i+1}>\theta_i`。求根只能在当前参数右侧括取最近物理解；在 `[0,\theta_i]` 搜索、把无根节点置零或让尾部坍缩到原点均判失败。结果合同须保存 `max_distance_residual_m`、`initial_head_radius_m` 和 `initial_tail_radius_m`，要求最大弦长残差不超过 `10^{-6}` m 且初态尾部极径大于头部极径。官方模板中所有带行列表头的数值交叉格必须完整回填，不能跳过中间连接点或龙尾前把手。
+
+刚性链速度的主值必须由连接弦约束对时间微分后，结合相邻节点路径切向投影递推；规定的龙头速度须按构造逐时精确满足，不能在结果末尾只覆盖龙头一列。对位置做有限差分只可作为独立交叉核验，不能取代约束微分；两者不一致、出现不合理尖峰或需“选择更可信的一组”时，应判定根分支/时间延拓失败并停止。
+
+分段路径接头必须分别计算位置残差、单位切向夹角和两侧曲率。不同半径的相切圆弧只能通过位置/切向 C1 检查，曲率会按 `1/R` 跳变；不得把相切残差为零写成 C2 或曲率连续。
+
+串联几何程序须从拓扑表生成约束数组并断言数组长度等于构件数；首段异质时，其余统一长度重复 `n-1` 次。对 `r=p\theta/(2\pi)`，若输入位置是第 `N` 圈，则初始化 `\theta=2\pi N`、`r=Np`，并在正式求解前以独立断言复算，禁止对圈数重复除以 `2\pi`。
+
+碰撞轮廓数组必须由构件真实总长、总宽和连接点外伸量生成，运动学孔距只能生成节点距离约束数组。二者分别保存并检查单位，禁止以孔距替代有向矩形全长；1 基节点表须断言末端编号等于构件数加一。
+
+若候选路径参数的可行性要求系统到达指定边界，程序必须沿完整运动区间复用有限长宽实体碰撞/干涉核，并把首次失效时刻与边界到达时刻比较。初态即边界的零步结果或只检查轨迹方程有交点，不得标记为可行最小值。
 
 内生决策响应模型须保存 `decision_response_audit`，至少含 `decision_variable`、`response_variable`、`assignment_mechanism`、`confounders`、`identification_design`、`identification_assumptions`、`response_semantics`、`decision_bounds`、`boundary_hit_rate`、`response_scenarios` 和 `robust_replay`。若 `identification_design=observational_only`，输出只能标记为关联预测或情景优化，不得标记因果最优。至少运行一组响应系数扰动和一组时间/实体外回测；最优决策大量贴边而未扩大/解释安全域，或仅在训练内报告拟合优度时，不得标记 `status=success`。
 
@@ -180,6 +196,22 @@ AI 在实现、求解和作图过程中，必须把关键中间过程保存成�
 逆问题、定位、反演、编队和标定结果须在每个相关 JSON 保存 `identifiability_audit`，至少包含 `unknown_dimension`、`independent_observation_dimension`、`gauge_transformations`、`anchors_or_priors`、`jacobian_rank`、`smallest_singular_value`、`condition_number`、`discrete_ambiguity_count` 和 `invariance_negative_tests`。代码必须验证锚定后的雅可比达到声明秩，并实际运行至少一个平移/旋转/尺度/镜像/标签置换负例；若负例仍满足观测且未由锚点或先验排除，结论只能是等价类或多解。不得以残差近零、方程数较多或求解器 `success` 代替可辨识性证据。
 
 声称多轮迭代调整或控制收敛时，须保存 `iteration_history`，逐轮记录选择集合、目标/残差、最大状态更新、约束裕度和终止原因；至少运行两个不同初值或扰动规模。生成一张真实迭代曲线或逐轮表，并将其列入 `artifacts`。只保存初态与终态时不得写“经多轮收敛”，只能写“联合批处理回放可行”。
+
+执行任何 EDA 前，先在 `data_manifest` 中冻结每个附件的角色：题面/说明、观测输入、待回填输出模板或静态资源。`result*.xlsx`、`output*.xlsx`、`submission*.xlsx` 和文件名含“结果模板”的表格默认为输出模板候选；其空白写入格不是缺失观测，不得计算缺失率、异常值、相关性或分布。最多用两次结构检查确认角色；确认是空白模板后立即转向题面常量、几何/量纲关系和可行域审计。只有包含非空观测样本且字段语义明确的文件才能进入数据驱动 EDA；无法确定时返回 `blocked_input_role`。
+
+EDA 到写出来源/附件/参数/量纲审计合同即结束，不在该阶段求解后续子问、扫描候选参数、做全时域仿真或生成论文结果。若 EDA 合同的来源事实未过门禁，只允许按诊断定向修复一次；诊断已给出确定来源事实时，下一次工具调用必须直接修改并重写证据 JSON，不得再次读取、渲染或裁剪题图。修复仍失败就阻断，不得转去执行其他子问来规避错误。
+
+代码阶段须从题目原文独立重建 `source_parameter_audit`，不得把建模报告当事实源。每个派生参数保存来源值、公式、统一单位、子问题作用域和范围断言；内部长度、概率、质量、面积与计数须分别满足其自然边界。以构件内部点距为例，若总长为 $L$、两端偏移为 $e_1,e_2$，必须断言 $d=L-e_1-e_2$ 且 $0<d\le L$；加号公式或超出整体尺寸的值作为负例拒绝。题面事实与候选方案冲突时先纠正候选方案；无法唯一修复时输出 `blocked_source_facts`，禁止生成正式结果或论文。
+
+题面引用图示且关键方向、坐标、端点或连接关系依赖该图时，读取本地官方 PDF/图片，并在 EDA 证据合同的 `data_scope.source_figures` 数组逐图记录 `file`、从 1 开始的 `page`、`figure` 和具体 `facts`；PDF 所报页必须实际含“图 N + 图名”的图注，正文里的“见图 N”引用不算图所在页。命名点必须记录它与坐标轴、内外端或方向的明确相对关系。只写“已查看/已核验”，或写“未给出、仅示意、需约定”，均不算提取事实。文件不存在、页码/图号缺失或无法可靠辨认即阻断，不得声称“没有图”后按惯例猜测。
+
+同一关键题图最多使用两次工具调用检查：一次逐页定位完整图注，一次渲染或独立核验。不得根据正文顺序、截断输出或 `problem.txt` 的换页布局猜测 PDF 页码；须在每个 PDF 页的独立提取文本中查找行首“图 N + 图名”。取得官方文件、页码、图号和具体事实后立即进入求解并写结果合同，禁止对同一页面的派生裁剪反复做像素分析。
+
+坐标实现须分别核对路径参数增减、极径增减和标准平面方位角。题图若把起点放在正 x 轴且题面要求顺时针运动，起点后的小时间步必须进入下半平面；递增路径参数不能未经符号映射直接代入 `x=r\cos\theta, y=r\sin\theta`。将该局部象限或坐标符号作为来源方向的独立验算。
+
+每个代码子任务必须保存 `results_<subtask>.json`，固定包含 `status`、`subtask`、`data_scope`、`assumptions`、`model`、`numeric_results`、`validation` 和 `conclusion_bounds`。`numeric_results` 至少有一个有限可复算数值，`validation.passed=true` 且 `checks` 非空；缺合同、只有文字结论或验证未通过时不得进入写作。题面指定 Excel 模板时还须原位新增数值，并证明工作表、固定文字、公式、合并区域和样式未变化。
+
+跨子问题参数隔离须贯穿所有结果合同字段。不能在建模方案中声明完整候选域，却在 EDA 或后续 `conclusion_bounds` 中把前问的初态、螺距或阈值重新写成后问搜索下界；优化边界必须保存本问原文来源，或保存由完整实体可行性核独立证明被裁区间不可行的证据。
 
 题目提供 Excel/CSV 结果模板时，最终产物必须由保留模板结构和样式的表格引擎写入。写后重新导入，对每个可写区域逐格比对结构化结果；同时检查工作表名、固定说明、公式、合并区域和非填写单元未变化。范围收缩、错列、四舍五入差异或模板公式被覆盖均为失败，不能只凭“文件能打开”放行。
 
