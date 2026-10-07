@@ -13,6 +13,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的"论文验收与一致性"小节。该文件只是规范知识库，不是固定执行流程；具体目录、入口文件、结果文件和图表目录由当前项目结构决定。
 结构化结果字段和指标语义按 `../_references/result_contract.md` 执行。
 储能、库存、滚动预测等跨期决策题同时按 `../_references/time_coupled_optimization_audit.md` 验收目标函数忠实度、信息时点、跨期状态和官方附件。
+含违约、退款、溢价、应急采购或多阶段结算时，同时按 `../_references/objective_semantics_audit.md` 验收结算台账、正负号、一单位反例和边际成本推导。只验证费用数组闭合而未验证题意语义，直接判定 `FAIL`。
 
 ## 阶段边界
 
@@ -60,6 +61,10 @@ Windows PowerShell 使用 `python`；如果系统只有 `python3`，替换为 `p
 同时核对原始求解状态码、`termination_category`、incumbent、目标界、gap 与容差。达到时间/迭代/节点上限却写 `solver_converged=true`，或 gap 为未知/无穷、缺少有限界却写 `global_proven`，均 `FAIL`。存在可行 incumbent 只能证明可行性；正式提交附件若要求已证明最优而当前仅 `feasible_only`，必须拒绝导出或验证其带 `DRAFT_FEASIBLE_ONLY` 标识。
 
 若同题参考结果冲突或模型存在多种物理/统计口径，检查 `comparison_semantics` 及口径敏感性结果。表面/对象模型、分子、分母、权重、采样单位或边界不同的数值被直接计算相对误差、排序或当作正确性证据时，判定 `FAIL`。
+
+参考论文被标为“同题”时，必须核验竞赛年份、题号和题目名称三项一致。任一不一致却仍用于同题模型深度、正确性或正文页数门槛时判定 `FAIL`；只能降级为历年版式参考。
+
+对费用目标执行 `objective_semantics_audit`。自然语言中的违约、退款、少付、溢价和应急费用必须与公式及程序符号一致，并通过基准、减1、加1和应急1单位测试。风险分位数若未从完整总费用边际差推导，或经验参数使用正式报告期数据选择，却在论文中称理论唯一或时间外验证，判定 `FAIL`。
 
 对所有优化结论检查 `optimization_domain`：变量类型、上下界、开闭边界、是否允许未观测组合、插值/外推和安全域任一缺失则 `FAIL`。题面严格不等式被实现为闭边界、网格最靠近边界点被宣称为精确最优、代理模型外推值与实测/插值值未分层标注，均判定 `FAIL`。若一组实体有多条观测，验证划分必须报告分组键与组间重叠计数；用行级随机拆分宣称新实体泛化时判定 `FAIL`。
 
