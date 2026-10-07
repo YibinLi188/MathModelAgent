@@ -12,6 +12,8 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 国赛任务同时读取 `../_references/cumcm_abc_playbooks.md`，在报告开头记录 `problem_track`、判定依据和选用的差异化路线。A/B/C 只是先验：题面主导矛盾不匹配时使用 `content_override`，并按真实内容路由。
 
+若题目含储能、库存、滚动预测或其他跨期状态，读取 `../_references/time_coupled_optimization_audit.md`，在建模报告中落实目标函数账本、信息时点账本、连续状态初值和官方附件口径。
+
 ## 必须产出
 
 在当前工作目录的 `reports/` 子目录中创建或更新：

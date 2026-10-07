@@ -12,6 +12,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的"论文验收与一致性"小节。该文件只是规范知识库，不是固定执行流程；具体目录、入口文件、结果文件和图表目录由当前项目结构决定。
 结构化结果字段和指标语义按 `../_references/result_contract.md` 执行。
+储能、库存、滚动预测等跨期决策题同时按 `../_references/time_coupled_optimization_audit.md` 验收目标函数忠实度、信息时点、跨期状态和官方附件。
 
 ## 阶段边界
 

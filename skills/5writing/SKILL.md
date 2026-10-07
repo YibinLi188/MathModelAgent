@@ -13,6 +13,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 ## 数学建模规范参考
 
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的“论文写作”“图表与可视化”和“非数据图工具选择”小节。该文件只作为规范知识库，论文结构仍按比赛模板和当前赛题内容决定。
+跨期决策题还须读取 `../_references/time_coupled_optimization_audit.md`；只使用已通过连续状态、因果时点和官方附件回读验收的结果。
 
 ## 模板族
 

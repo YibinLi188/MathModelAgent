@@ -12,6 +12,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetc
 
 如需领域判断，读取 `../_references/math_modeling_norms.md` 中的“题型防错速查”“代码实现与结果”“编码阶段常见错误”和“图表与可视化”小节。该文件只作为规范知识库，不新增本阶段的固定产物。
 结果字段和指标语义按 `../_references/result_contract.md` 执行。
+储能、库存、滚动预测等跨期决策题同时按 `../_references/time_coupled_optimization_audit.md` 生成信息穿越测试、连续状态回放和官方附件重读证据。
 
 ## 阶段边界
 
