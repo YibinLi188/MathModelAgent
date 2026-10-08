@@ -1,9 +1,9 @@
 """LLM 交互模块，封装大语言模型的调用、重试和消息发送。"""
 
+import asyncio
 from typing import Any
 from app.utils.common_utils import transform_link, split_footnotes
 from app.utils.log_util import logger
-import time
 from app.schemas.response import (
     CoderMessage,
     WriterMessage,
@@ -23,6 +23,14 @@ from app.core.llm.providers.anthropic import AnthropicProvider
 
 class LLMConfigError(RuntimeError):
     """LLM 配置缺失时抛出，与 JSON 解析的 ValueError 区分开，避免被重试循环误捕获。"""
+
+
+class LLMRequestError(RuntimeError):
+    """LLM provider failed within the bounded request/retry policy."""
+
+
+DEFAULT_REQUEST_TIMEOUT_S = 180.0
+DEFAULT_MAX_RETRIES = 3
 
 
 class LLM:
@@ -71,6 +79,7 @@ class LLM:
         tool_choice: str | None = None,
         max_retries: int | None = None,
         retry_delay: float = 1.0,
+        request_timeout_s: float = DEFAULT_REQUEST_TIMEOUT_S,
         top_p: float | None = None,
         agent_name: str = "SystemAgent",
         sub_title: str | None = None,
@@ -83,29 +92,44 @@ class LLM:
 
         messages = history or []
 
+        retry_limit = DEFAULT_MAX_RETRIES if max_retries is None else max_retries
+        if retry_limit < 1:
+            raise ValueError("max_retries 必须至少为 1")
+        if request_timeout_s <= 0:
+            raise ValueError("request_timeout_s 必须大于 0")
+
         attempt = 0
         while True:
             try:
-                response = await self.provider.call(
-                    messages=messages,
-                    model=self.model,  # type: ignore[arg-type]
-                    api_key=self.api_key,  # type: ignore[arg-type]
-                    base_url=self.base_url,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    max_tokens=self.max_tokens,
-                    top_p=top_p,
+                response = await asyncio.wait_for(
+                    self.provider.call(
+                        messages=messages,
+                        model=self.model,  # type: ignore[arg-type]
+                        api_key=self.api_key,  # type: ignore[arg-type]
+                        base_url=self.base_url,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        max_tokens=self.max_tokens,
+                        top_p=top_p,
+                    ),
+                    timeout=request_timeout_s,
                 )
                 logger.info(f"API返回: content={response.content!r}, tool_calls={len(response.tool_calls)}")
                 self.chat_count += 1
                 await self.send_message(response, agent_name, sub_title)
                 return response
-            except Exception as e:
+            except Exception as exc:
                 attempt += 1
-                logger.error(f"第{attempt}次重试: {str(e)}")
-                if max_retries is not None and attempt >= max_retries:
-                    raise
-                time.sleep(retry_delay * min(attempt, 10))
+                if isinstance(exc, TimeoutError):
+                    detail = f"单次请求超过 {request_timeout_s:g} 秒"
+                else:
+                    detail = str(exc) or exc.__class__.__name__
+                logger.error(f"LLM 请求第 {attempt}/{retry_limit} 次失败: {detail}")
+                if attempt >= retry_limit:
+                    raise LLMRequestError(
+                        f"{agent_name} LLM 请求在 {attempt} 次有界尝试后失败: {detail}"
+                    ) from exc
+                await asyncio.sleep(retry_delay * min(attempt, 10))
 
     def _validate_and_fix_tool_calls(self, history: list) -> list:
         """验证并修复工具调用完整性。"""
@@ -196,10 +220,13 @@ class LLM:
 
 async def simple_chat(model: LLM, history: list) -> str:
     """使用 LLM 进行简单的单轮对话。"""
-    response = await model.provider.call(
-        messages=history,
-        model=model.model,  # type: ignore[arg-type]
-        api_key=model.api_key,  # type: ignore[arg-type]
-        base_url=model.base_url,
+    response = await asyncio.wait_for(
+        model.provider.call(
+            messages=history,
+            model=model.model,  # type: ignore[arg-type]
+            api_key=model.api_key,  # type: ignore[arg-type]
+            base_url=model.base_url,
+        ),
+        timeout=DEFAULT_REQUEST_TIMEOUT_S,
     )
     return response.content or ""

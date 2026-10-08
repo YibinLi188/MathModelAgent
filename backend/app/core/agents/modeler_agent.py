@@ -5,11 +5,18 @@ from app.core.agents.agent import Agent
 from app.core.llm.llm import LLM
 from app.core.prompts import MODELER_PROMPT
 from app.schemas.A2A import CoordinatorToModeler, ModelerToCoder
+from app.core.quality_gates import (
+    QualityGateError,
+    derive_source_figure_requirements,
+    format_source_guardrails,
+    validate_modeler_result,
+)
 from app.utils.log_util import logger
 import json
 from icecream import ic  # type: ignore[import-unresolved]
+from pydantic import ValidationError
 
-MAX_JSON_RETRIES = 3
+MAX_JSON_RETRIES = 4
 
 
 def repair_json(json_str: str) -> dict | None:
@@ -44,6 +51,7 @@ def repair_json(json_str: str) -> dict | None:
 
 class ModelerAgent(Agent):
     """建模手 Agent，分析问题类型并制定建模方案、求解方法和可视化策略。"""
+
     def __init__(
         self,
         task_id: str,
@@ -54,7 +62,11 @@ class ModelerAgent(Agent):
         super().__init__(task_id, model, context_window, cancel_event=cancel_event)
         self.system_prompt = MODELER_PROMPT
 
-    async def run(self, coordinator_to_modeler: CoordinatorToModeler) -> ModelerToCoder:  # type: ignore[reportIncompatibleMethodOverride]
+    async def run(
+        self,
+        coordinator_to_modeler: CoordinatorToModeler,
+        authoritative_source_text: str | None = None,
+    ) -> ModelerToCoder:  # type: ignore[reportIncompatibleMethodOverride]
         """根据协调者拆解的问题生成建模方案。
 
         Args:
@@ -66,10 +78,28 @@ class ModelerAgent(Agent):
         await self.append_chat_history(
             {"role": "system", "content": self.system_prompt}
         )
+        question_keys = {
+            key
+            for key in coordinator_to_modeler.questions
+            if key.startswith("ques") and key != "ques_count"
+        }
+        coordinator_outline = json.dumps(
+            coordinator_to_modeler.questions, ensure_ascii=False
+        )
+        source_text = authoritative_source_text or coordinator_outline
         await self.append_chat_history(
             {
                 "role": "user",
-                "content": json.dumps(coordinator_to_modeler.questions),
+                "content": (
+                    "冻结的用户原始题面（唯一事实来源，不得被重述覆盖）：\n"
+                    + source_text
+                    + "\n\nCoordinator 结构化索引（只用于定位子问题，若有删减或冲突以原始题面为准）：\n"
+                    + coordinator_outline
+                    + "\n\n"
+                    + format_source_guardrails(source_text)
+                    + "\n请将这些程序派生的题面不变量作为方案前置约束，"
+                    "不得在同一输出中又给出相矛盾的节点数或连接点距离语义。"
+                ),
             }
         )
 
@@ -86,8 +116,58 @@ class ModelerAgent(Agent):
 
             questions_solution = repair_json(json_str)
             if questions_solution:
+                figure_requirements = derive_source_figure_requirements(source_text)
+                serialized_solution = json.dumps(questions_solution, ensure_ascii=False)
+                if (
+                    figure_requirements
+                    and "source_figure_required" not in serialized_solution
+                    and isinstance(questions_solution.get("eda"), str)
+                ):
+                    questions_solution["eda"] += (
+                        " source_figure_required: 代码阶段必须核验官方关键图示："
+                        + json.dumps(
+                            figure_requirements,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        )
+                    )
                 ic(questions_solution)
-                return ModelerToCoder(questions_solution=questions_solution)
+                try:
+                    result = ModelerToCoder(questions_solution=questions_solution)
+                    validate_modeler_result(
+                        result, question_keys, source_text=source_text
+                    )
+                except (QualityGateError, ValidationError) as exc:
+                    attempt += 1
+                    logger.warning(
+                        f"建模方案未通过结构/质量门禁 (第{attempt}/"
+                        f"{MAX_JSON_RETRIES}次): {exc}"
+                    )
+                    await self.append_chat_history(
+                        {"role": "assistant", "content": json_str}
+                    )
+                    await self.append_chat_history(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"建模方案未通过结构/质量门禁：{exc}。"
+                                "顶层键只允许 eda、"
+                                f"{', '.join(sorted(question_keys))} 和 "
+                                "sensitivity_analysis；删除占位、note、说明等其他键。"
+                                "不得输出任何自我纠错、推理争论或‘已删除某键’之类的过程文字；"
+                                "eda 不超过1600字，每个 quesN 和 sensitivity_analysis "
+                                "分别不超过1200字。"
+                                "请只按题面原值修正来源参数、实体--节点拓扑和派生公式，"
+                                "然后重新输出完整、简洁 JSON；必须包含 eda、"
+                                "所有 quesN 和 sensitivity_analysis，不要输出自我纠错过程。"
+                                "再次逐项执行以下程序前置合同："
+                                + format_source_guardrails(source_text)
+                            ),
+                        }
+                    )
+                    continue
+                else:
+                    return result
 
             attempt += 1
             logger.warning(
@@ -100,7 +180,12 @@ class ModelerAgent(Agent):
             await self.append_chat_history(
                 {
                     "role": "user",
-                    "content": "你返回的JSON格式有误，请严格按照JSON格式重新输出，注意字符串值内的双引号必须转义为\\\"，不要包含未转义的特殊字符。",
+                    "content": (
+                        "你返回的 JSON 格式有误或被过长内容截断。"
+                        "请从头输出单层、完整、简洁 JSON，必须包含 eda、"
+                        "所有 quesN 和 sensitivity_analysis；每个值不超过约 1200 个字，"
+                        "不要输出自我纠错过程，字符串内双引号必须转义。"
+                    ),
                 }
             )
 

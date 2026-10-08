@@ -11,8 +11,8 @@
 
 | 字段 | 要求 |
 | --- | --- |
-| `schema_version` | 当前为 `1.0` |
-| `status` | 成功必须为 `success`；失败必须为 `failed` 并填写 `error` |
+| `schema_version` | 当前为 `1.2`；从 1.1 迁移时补齐 `termination_category`、incumbent、界、gap 与容差字段 |
+| `status` | 只表示计算流程是否完整执行：成功为 `success`；执行失败为 `failed` 并填写 `error`。不得用它代替求解器收敛或最优性声明 |
 | `task` | 稳定的问题标识，如 `ques1` |
 | `data_hashes` | 输入数据或参数快照的 SHA-256，不能为空 |
 | `sample` | 样本量、仿真步数或重复次数，不能用自然语言代替 |
@@ -21,8 +21,74 @@
 | `parameters` | 本次运行的完整参数，而非只写默认值 |
 | `artifacts` | 结果表、图表、日志的相对路径，且文件必须存在 |
 | `validation` | `independent_recompute=true`、`independent_delta` 和 `tolerance`，以及约束检查结果 |
+| `solution_evidence` | 区分可行性、求解器收敛和最优性；字段要求见下文 |
+| `optimization_domain` | 优化任务必填：决策变量、类型、上下界、开闭边界、组合来源、插值/外推、安全域与验证切分 |
 | `limitations` | 近似、未覆盖情景和外推边界 |
 | `error` | 成功时为 `null` |
+
+`solution_evidence` 的最小结构为：
+
+```json
+{
+  "feasibility_status": "feasible | infeasible | not_applicable",
+  "solver_converged": false,
+  "termination_reason": "maximum function evaluations reached",
+  "termination_category": "limit",
+  "incumbent_available": true,
+  "objective_bound": null,
+  "optimality_gap": null,
+  "optimality_tolerance": 0.005,
+  "optimality_claim": "global_proven | local_converged | feasible_only | not_applicable",
+  "restart_or_budget_checks": 3,
+  "stability_evidence": "three budgets produced the same feasible objective within 0.2%"
+}
+```
+
+`termination_category` 只能为 `normal|limit|interrupted|numerical|infeasible|not_applicable`。`status=success` 只说明计算和产物生成成功。达到时间/迭代/节点上限时，即使存在 incumbent，也必须写 `solver_converged=false`、`termination_category=limit` 和 `optimality_claim=feasible_only`；正文只能写“可行近似解/方案”。`global_proven` 必须同时有正常终止、有限的目标界与 gap，且 `optimality_gap <= optimality_tolerance`。无有限界或 gap 为 `null/NaN/Infinity` 时不得声称最优。
+
+题目提供官方 Excel/CSV 提交模板时，结果契约还必须包含 `submission_export`：列出模板、产物、允许导出的最弱求解声明，以及显式的十进制舍入规则。必须用恰好位于半单位处的边界值（如 57.5625 保留三位）验证 tie-breaking；Python `round` 的 half-even 不能静默冒充竞赛常用的 half-up。若当前 `optimality_claim` 低于导出政策，允许生成的只能是带 `DRAFT_FEASIBLE_ONLY` 标识的审计草稿，不得命名为正式提交结果。
+
+当指标存在合理但不唯一的物理/统计口径，或同题高质量参考结果明显冲突时，结果 JSON 还必须包含 `comparison_semantics`：
+
+```json
+{
+  "comparison_semantics": {
+    "surface_or_entity_model": "planar triangular panel",
+    "numerator": "projected incident area whose reflected ray hits the receiver disk",
+    "denominator": "projected area inside the 300 m aperture",
+    "weighting": "projected area",
+    "sampling_unit": "uniform point within each triangle",
+    "boundary_rule": "triangle samples outside aperture are excluded",
+    "uncertainty": "10000 samples per triangle; 100 repeated runs",
+    "comparable_reference_ids": ["A217"]
+  }
+}
+```
+
+比较前必须对齐表面/对象模型、分子、分母、权重、采样单位、边界和不确定性。定义不同的裸数值不得直接排序或写成精度差距；应分别报告为口径敏感性。
+
+优化任务的最小 `optimization_domain` 结构为：
+
+```json
+{
+  "decision_variables": [
+    {"name": "temperature_c", "type": "continuous", "lower": 250, "upper": 350, "lower_exclusive": false, "upper_exclusive": true}
+  ],
+  "combination_scope": "observed_combinations_only",
+  "interpolation": "piecewise_linear_within_each_observed_range",
+  "extrapolation": "forbidden",
+  "safety_constraints": ["temperature_c <= 450"],
+  "validation_split": {"group_key": "catalyst_combination", "overlap_count": 0},
+  "reported_points": [
+    {"label": "engineering point", "role": "feasible_candidate", "values": {"temperature_c": 349}},
+    {"label": "left-limit reference", "role": "supremum_reference", "values": {"temperature_c": 350}}
+  ],
+  "grid_step": 0.1,
+  "boundary_interpretation": "open upper bound; report supremum and a separate engineering-margin point"
+}
+```
+
+`combination_scope` 必须区分 `observed_combinations_only`、`interpolated_design_space` 与 `extrapolated_candidate_space`。`reported_points.role` 只能为 `feasible_candidate`、`supremum_reference` 或 `infeasible_reference`；验证器会逐变量检查所有可行候选是否真正满足开闭边界。严格不等式使用 `*_exclusive=true`；若可行域开边界导致不存在最大值，`solution_evidence.optimality_claim` 不得写 `global_proven`，核心指标应分别给上确界近似与工程裕度点。
 
 题面含计算、存储、时间、成本、能耗或资源利用率目标时，还必须包含 `resource` 对象。该对象是结果声明，不替代独立复算：
 

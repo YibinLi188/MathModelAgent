@@ -94,6 +94,26 @@ class WriterAgent(Agent):
             logger.info(f"image_prompt是:{image_prompt}")
             prompt = prompt + image_prompt
 
+        if self.format_out_put == FormatOutPut.LaTeX:
+            if sub_title == "firstPage":
+                prompt += r"""
+
+【LaTeX 首页返回契约】
+只返回以下三个标签；标签内不写导言区、标题命令、颜色命令或分页命令：
+<PAPER_TITLE>准确、简洁的黑色论文标题纯文本</PAPER_TITLE>
+<PAPER_ABSTRACT>任务、逐问方法与关键数值结果、验证和适用边界组成的摘要正文</PAPER_ABSTRACT>
+<PAPER_KEYWORDS>4至5个以中文逗号分隔的关键词</PAPER_KEYWORDS>
+不得在标签外添加解释。
+"""
+            else:
+                prompt += r"""
+
+【LaTeX 正文片段契约】
+只返回当前章节的 LaTeX 正文片段。不得输出 \documentclass、\usepackage、
+\begin{document}、\end{document}、颜色命令、\newpage 或 \clearpage；
+不得混入 Markdown 标题、表格或图片语法。版式、标题颜色和分页由程序统一控制。
+"""
+
         logger.info(f"{self.__class__.__name__}:开始:执行对话")
 
         await self.append_chat_history({"role": "user", "content": prompt})

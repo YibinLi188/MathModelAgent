@@ -1,0 +1,98 @@
+% !TEX program = xelatex
+\documentclass[fontset=none,UTF8,zihao=-4,a4paper]{ctexart}
+
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array,tabularx}
+\usepackage{graphicx,float}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{etoolbox}
+\usepackage[hidelinks]{hyperref}
+
+% Windows 使用常见宋/黑体；Docker/Linux 使用已安装的 Noto CJK。
+\IfFontExistsTF{SimSun}{%
+  \setCJKmainfont{SimSun}
+  \setCJKsansfont{SimHei}
+  \newCJKfontfamily\paperheadingfont{SimHei}
+}{%
+  \setCJKmainfont{Noto Serif CJK SC}
+  \setCJKsansfont{Noto Sans CJK SC}
+  \newCJKfontfamily\paperheadingfont{Noto Sans CJK SC}
+}
+
+\definecolor{paperblack}{RGB}{0,0,0}
+\color{paperblack}
+\graphicspath{{figures/}}
+\linespread{1.35}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\setlength{\abovedisplayskip}{7pt plus 2pt minus 2pt}
+\setlength{\belowdisplayskip}{7pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\renewcommand{\topfraction}{0.90}
+\renewcommand{\bottomfraction}{0.80}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.80}
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\flushbottom
+
+\ctexset{
+  section={name={,、},number=\chinese{section}},
+  subsection={number=\arabic{section}.\arabic{subsection}},
+  subsubsection={number=\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+}
+\titleformat{\section}
+  {\centering\color{paperblack}\paperheadingfont\bfseries\zihao{3}}
+  {\chinese{section}、}{0pt}{}
+\titleformat{\subsection}
+  {\color{paperblack}\paperheadingfont\bfseries\zihao{4}}
+  {\arabic{section}.\arabic{subsection}}{0.7em}{}
+\titleformat{\subsubsection}
+  {\color{paperblack}\paperheadingfont\bfseries\zihao{-4}}
+  {\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}{0.7em}{}
+\titlespacing*{\section}{0pt}{1.2em}{0.7em}
+\titlespacing*{\subsection}{0pt}{1.0em}{0.45em}
+\titlespacing*{\subsubsection}{0pt}{0.9em}{0.35em}
+\newcommand{\paperneedlines}[1]{%
+  \par\begingroup
+  \dimen0=\pagegoal\advance\dimen0 by -\pagetotal
+  \dimen2=#1\baselineskip
+  \ifdim\dimen0<\dimen2\pagebreak[4]\fi
+  \endgroup
+}
+\pretocmd{\section}{\paperneedlines{8}}{}{}
+\pretocmd{\subsection}{\paperneedlines{5}}{}{}
+\pretocmd{\subsubsection}{\paperneedlines{4}}{}{}
+
+\newcommand{\papertitle}[1]{%
+  \begin{center}
+    {\color{paperblack}\paperheadingfont\bfseries\zihao{3}#1}
+  \end{center}
+  \vspace{0.4em}
+}
+\newenvironment{paperabstract}{%
+  \begin{center}{\color{paperblack}\paperheadingfont\bfseries\zihao{4}摘\quad 要}\end{center}
+  \zihao{-4}
+}{\par}
+
+\pagestyle{plain}
+
+\begin{document}
+
+\papertitle{%%PAPER_TITLE%%}
+
+\begin{paperabstract}
+%%PAPER_ABSTRACT%%
+\end{paperabstract}
+
+\noindent{\paperheadingfont\bfseries 关键词：}%%PAPER_KEYWORDS%%
+
+%%PAPER_BODY%%
+
+%%PAPER_REFERENCES%%
+
+\end{document}

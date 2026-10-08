@@ -6,6 +6,8 @@ from app.utils.data_recorder import DataRecorder
 from app.schemas.A2A import WriterResponse
 import json
 import uuid
+from app.schemas.enums import FormatOutPut
+from app.services.paper_artifacts import prepare_latex_source
 
 
 class UserOutput:
@@ -185,10 +187,40 @@ class UserOutput:
         full_res = self.append_footnotes_to_text(full_res_1)
         return full_res
 
-    def save_result(self):
-        """将结果保存为 res.json 和 res.md 文件。"""
+    def get_latex_sections(self) -> tuple[dict[str, str], list[str]]:
+        """Return ordered LaTeX fragments and numbered bibliography entries."""
+        replaced: dict[str, str] = {}
+        next_number = 1
+        for key in self.seq:
+            text = self.replace_references_with_uuid(self.res[key]["response_content"])
+            for uid in re.findall(r"\[([a-f0-9-]{36})\]", text):
+                footnote = self.footnotes[uid]
+                if footnote.get("number") is None:
+                    footnote["number"] = next_number
+                    next_number += 1
+                else:
+                    next_number = max(next_number, int(footnote["number"]) + 1)
+                text = text.replace(
+                    f"[{uid}]", f"\\cite{{ref{footnote['number']}}}", 1
+                )
+            replaced[key] = text
+        references = [
+            data["content"]
+            for _, data in sorted(
+                self.footnotes.items(), key=lambda item: int(item[1]["number"])
+            )
+        ]
+        return replaced, references
+
+    def save_result(self, format_output: FormatOutPut = FormatOutPut.Markdown):
+        """Save structured results and assemble the selected source format."""
         with open(os.path.join(self.work_dir, "res.json"), "w", encoding="utf-8") as f:
             json.dump(self.res, f, ensure_ascii=False, indent=4)
+
+        if format_output == FormatOutPut.LaTeX:
+            sections, references = self.get_latex_sections()
+            prepare_latex_source(self.work_dir, sections, references)
+            return
 
         res_path = os.path.join(self.work_dir, "res.md")
         with open(res_path, "w", encoding="utf-8") as f:

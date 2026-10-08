@@ -17,6 +17,7 @@ from app.core.llm.llm_factory import LLMFactory
 from app.core.quality_gates import (
     QualityGateError,
     validate_coder_result,
+    validate_competition_paper_text,
     validate_modeler_result,
     validate_writer_result,
 )
@@ -119,7 +120,10 @@ class MathModelWorkFlow(WorkFlow):
             cancel_event=self.cancel_event,
         )
 
-        modeler_response = await modeler_agent.run(coordinator_response)
+        modeler_response = await modeler_agent.run(
+            coordinator_response,
+            authoritative_source_text=problem.ques_all,
+        )
         validate_modeler_result(
             modeler_response,
             {
@@ -127,6 +131,7 @@ class MathModelWorkFlow(WorkFlow):
                 for key in self.questions
                 if key.startswith("ques") and key != "ques_count"
             },
+            source_text=problem.ques_all,
         )
 
         user_output = UserOutput(work_dir=self.work_dir, ques_count=self.ques_count)
@@ -183,7 +188,10 @@ class MathModelWorkFlow(WorkFlow):
             cancel_event=self.cancel_event,
         )
 
-        flows = Flows(self.questions)
+        flows = Flows(
+            self.questions,
+            authoritative_source_text=problem.ques_all,
+        )
 
         ################################################ solution steps
         solution_flows = flows.get_solution_flows(self.questions, modeler_response)
@@ -198,10 +206,17 @@ class MathModelWorkFlow(WorkFlow):
             )
 
             coder_response = await coder_agent.run(
-                prompt=value["coder_prompt"], subtask_title=key
+                prompt=value["coder_prompt"],
+                subtask_title=key,
+                source_text=value["source_text"],
             )
             try:
-                validate_coder_result(coder_response, self.work_dir)
+                validate_coder_result(
+                    coder_response,
+                    self.work_dir,
+                    subtask_title=key,
+                    source_text=value["source_text"],
+                )
             except QualityGateError as exc:
                 await redis_manager.publish_message(
                     self.task_id,
@@ -229,7 +244,7 @@ class MathModelWorkFlow(WorkFlow):
                 available_images=coder_response.created_images,
                 sub_title=key,
             )
-            validate_writer_result(writer_response)
+            validate_writer_result(writer_response, section_name=key)
 
             await redis_manager.publish_message(
                 self.task_id,
@@ -257,10 +272,13 @@ class MathModelWorkFlow(WorkFlow):
             )
 
             writer_response = await writer_agent.run(prompt=value, sub_title=key)
-            validate_writer_result(writer_response)
+            validate_writer_result(writer_response, section_name=key)
 
             user_output.set_res(key, writer_response)
 
         logger.info(user_output.get_res())
 
-        user_output.save_result()
+        validate_competition_paper_text(
+            user_output.get_result_to_save(), section_name="assembled_paper"
+        )
+        user_output.save_result(problem.format_output)

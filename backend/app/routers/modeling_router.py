@@ -11,8 +11,8 @@ from app.utils.common_utils import (
     create_task_id,
     create_work_dir,
     get_current_files,
-    md_2_docx,
 )
+from app.services.paper_artifacts import finalize_task_output
 import os
 import asyncio
 from typing import Dict, Tuple
@@ -313,11 +313,10 @@ async def run_modeling_task_async(
     task = asyncio.create_task(workflow.execute(problem))
     _active_tasks[task_id] = (task, cancel_event)
 
-    task_completed = False
     try:
         # 设置超时时间（5 小时）
         await asyncio.wait_for(task, timeout=3600 * 5)
-        task_completed = True
+        await asyncio.to_thread(finalize_task_output, task_id, format_output)
 
         # 发送任务完成状态
         await redis_manager.publish_message(
@@ -339,9 +338,6 @@ async def run_modeling_task_async(
     finally:
         # 从注册表中清理
         _active_tasks.pop(task_id, None)
-        # 仅在正常完成时转换 md 为 docx
-        if task_completed:
-            md_2_docx(task_id)
 
 
 class CancelTaskResponse(BaseModel):

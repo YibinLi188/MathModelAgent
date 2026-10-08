@@ -1,8 +1,14 @@
 # 使用官方推荐的 Python 基础镜像
 FROM python:3.12-slim AS builder
 
-# 安装中文字体（确保 matplotlib 图表中文正常显示）
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk && rm -rf /var/lib/apt/lists/*
+# 安装中文字体、XeLaTeX 与 PDF 渲染工具，保证 LaTeX 模式在容器内真实可交付
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-noto-cjk \
+    poppler-utils \
+    texlive-lang-chinese \
+    texlive-latex-extra \
+    texlive-xetex \
+    && rm -rf /var/lib/apt/lists/*
 
 # 安装 uv（推荐直接用官方 distroless 镜像复制二进制文件，速度快且干净）
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
